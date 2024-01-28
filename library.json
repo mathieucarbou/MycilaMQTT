@@ -1,0 +1,43 @@
+{
+  "name": "MycilaMQTT",
+  "version": "1.0.0",
+  "description": "A simple and efficient MQTT helper for Arduino / ESP32 based on bertmelis/espMqttClient",
+  "homepage": "https://github.com/mathieucarbou/MycilaMQTT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mathieucarbou/MycilaMQTT.git"
+  },
+  "authors": {
+    "name": "Mathieu Carbou",
+    "url": "https://github.com/mathieucarbou"
+  },
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": [
+    "espressif32"
+  ],
+  "headers": "MycilaMQTT.h",
+  "dependencies": [
+    {
+      "name": "espMqttClient",
+      "version": "https://github.com/mathieucarbou/espMqttClient#v1.5.0-esphome",
+      "platforms": "espressif32"
+    },
+    {
+      "owner": "mathieucarbou",
+      "name": "MycilaLogger",
+      "version": "*",
+      "platforms": "espressif32"
+    }
+  ],
+  "export": {
+    "include": [
+      "examples",
+      "src",
+      "library.json",
+      "library.properties",
+      "LICENSE",
+      "README.md"
+    ]
+  }
+}
