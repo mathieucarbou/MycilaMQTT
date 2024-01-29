@@ -22,12 +22,6 @@
       "name": "espMqttClient",
       "version": "https://github.com/mathieucarbou/espMqttClient#v1.5.0-esphome",
       "platforms": "espressif32"
-    },
-    {
-      "owner": "mathieucarbou",
-      "name": "MycilaLogger",
-      "version": "*",
-      "platforms": "espressif32"
     }
   ],
   "export": {

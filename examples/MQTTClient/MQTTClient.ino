@@ -1,13 +1,8 @@
-#include <MycilaLogger.h>
 #include <MycilaMQTT.h>
 
 #define KEY_DEBUG_ENABLE "debug_enable"
 #define KEY_WIFI_SSID "wifi_ssid"
 #define KEY_WIFI_PWD "wifi_pwd"
-
-#ifdef MYCILA_LOGGER_CUSTOM_LEVEL
-uint8_t Mycila::LoggerClass::getLevel() const { return ARDUHAL_LOG_LEVEL_DEBUG; }
-#endif
 
 const Mycila::MQTTConfig Mycila::MQTTClass::getConfig() {
   return {
@@ -28,22 +23,20 @@ void setup() {
   while (!Serial)
     continue;
 
-  Mycila::Logger.forwardTo(&Serial);
-
   WiFi.mode(WIFI_STA);
   WiFi.begin("IoT");
 
   while (WiFi.status() != WL_CONNECTED) {
-    Mycila::Logger.info("APP", "Connecting to WiFi...");
+    ESP_LOGI("APP", "Connecting to WiFi...");
     delay(1000);
   }
 
   Mycila::MQTT.onConnect([]() {
-    Mycila::Logger.info("APP", "MQTT connected");
+    ESP_LOGI("APP", "MQTT connected");
   });
 
   Mycila::MQTT.subscribe("my-app/value/set", [](const String& topic, const String& payload) {
-    Mycila::Logger.info("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
+    ESP_LOGI("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
   });
 
   Mycila::MQTT.begin();

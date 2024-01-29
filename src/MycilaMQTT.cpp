@@ -2,7 +2,6 @@
 /*
  * Copyright (C) 2023-2024 Mathieu Carbou and others
  */
-#include <MycilaLogger.h>
 #include <MycilaMQTT.h>
 
 #include <functional>
@@ -18,7 +17,7 @@ void Mycila::MQTTClass::begin() {
   if (!_config.enabled)
     return;
 
-  Logger.info(TAG, "Enable MQTT...");
+  ESP_LOGI(TAG, "Enable MQTT...");
 
   if (_config.secured)
     _mqttClient = static_cast<MqttClient*>(new espMqttClientSecure(uxTaskPriorityGet(NULL), xPortGetCoreID()));
@@ -32,7 +31,7 @@ void Mycila::MQTTClass::end() {
   if (_state == MQTTState::MQTT_DISABLED)
     return;
 
-  Logger.info(TAG, "Disable MQTT...");
+  ESP_LOGI(TAG, "Disable MQTT...");
 
   _mqttClient->publish(_config.willTopic.c_str(), 0, true, "offline");
   _mqttClient->disconnect();
@@ -67,13 +66,13 @@ bool Mycila::MQTTClass::publish(const char* topic, const char* payload, bool ret
 void Mycila::MQTTClass::subscribe(const String& topic, MQTTMessageCallback callback) {
   _listeners.push_back({topic, callback});
   if (isConnected()) {
-    Logger.debug(TAG, "Subscribing to: %s...", topic.c_str());
+    ESP_LOGD(TAG, "Subscribing to: %s...", topic.c_str());
     _mqttClient->subscribe(topic.c_str(), 0);
   }
 }
 
 void Mycila::MQTTClass::unsubscribe(const String& topic) {
-  Logger.debug(TAG, "Unsubscribing from: %s...", topic.c_str());
+  ESP_LOGD(TAG, "Unsubscribing from: %s...", topic.c_str());
   _mqttClient->unsubscribe(topic.c_str());
   remove_if(_listeners.begin(), _listeners.end(), [&topic](const MQTTMessageListener& listener) {
     return listener.topic == topic;
@@ -84,18 +83,18 @@ void Mycila::MQTTClass::_connect() {
   _state = MQTTState::MQTT_CONNECTING;
 
   if (_config.server.isEmpty() || _config.baseTopic.isEmpty() || _config.port <= 0) {
-    Logger.error(TAG, "MQTT disabled: Invalid server, port or base topic");
+    ESP_LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
     return;
   }
 
-  Logger.info(TAG, "Connecting to MQTT server %s:%u...", _config.server.c_str(), _config.port);
-  Logger.debug(TAG, "- Secured: %s", _config.secured ? "true" : "false");
-  Logger.debug(TAG, "- Username: %s", _config.username.c_str());
-  Logger.debug(TAG, "- Password: %s", _config.password.c_str());
-  Logger.debug(TAG, "- ClientId: %s", _config.clientId.c_str());
-  Logger.debug(TAG, "- Prefix: %s", _config.baseTopic.c_str());
-  Logger.debug(TAG, "- Will: %s", _config.willTopic.c_str());
-  Logger.debug(TAG, "- Clean Session: %s", MYCILA_MQTT_CLEAN_SESSION ? "true" : "false");
+  ESP_LOGI(TAG, "Connecting to MQTT server %s:%u...", _config.server.c_str(), _config.port);
+  ESP_LOGD(TAG, "- Secured: %s", _config.secured ? "true" : "false");
+  ESP_LOGD(TAG, "- Username: %s", _config.username.c_str());
+  ESP_LOGD(TAG, "- Password: %s", _config.password.c_str());
+  ESP_LOGD(TAG, "- ClientId: %s", _config.clientId.c_str());
+  ESP_LOGD(TAG, "- Prefix: %s", _config.baseTopic.c_str());
+  ESP_LOGD(TAG, "- Will: %s", _config.willTopic.c_str());
+  ESP_LOGD(TAG, "- Clean Session: %s", MYCILA_MQTT_CLEAN_SESSION ? "true" : "false");
 
   if (_config.secured) {
     static_cast<espMqttClientSecure*>(_mqttClient)->setInsecure();
@@ -122,12 +121,12 @@ void Mycila::MQTTClass::_connect() {
 }
 
 void Mycila::MQTTClass::_onMqttConnect(bool sessionPresent) {
-  Logger.debug(TAG, "Connected to MQTT");
+  ESP_LOGD(TAG, "Connected to MQTT");
   _mqttClient->publish(_config.willTopic.c_str(), 0, true, "online");
-  Logger.debug(TAG, "Subscribing to %u topics...", _listeners.size());
+  ESP_LOGD(TAG, "Subscribing to %u topics...", _listeners.size());
   for (auto& _listener : _listeners) {
     String t = _listener.topic;
-    Logger.debug(TAG, "Subscribing to: %s", t.c_str());
+    ESP_LOGD(TAG, "Subscribing to: %s", t.c_str());
     _mqttClient->subscribe(t.c_str(), 0);
   }
   _state = MQTTState::MQTT_CONNECTED;
@@ -136,39 +135,39 @@ void Mycila::MQTTClass::_onMqttConnect(bool sessionPresent) {
 void Mycila::MQTTClass::_onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
   switch (reason) {
     case espMqttClientTypes::DisconnectReason::TCP_DISCONNECTED:
-      Logger.warn(TAG, "Disconnected from MQTT. Reason: TCP_DISCONNECTED");
+      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: TCP_DISCONNECTED");
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-      Logger.warn(TAG, "Disconnected from MQTT. Reason: MQTT_UNACCEPTABLE_PROTOCOL_VERSION");
+      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_UNACCEPTABLE_PROTOCOL_VERSION");
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_IDENTIFIER_REJECTED:
-      Logger.warn(TAG, "Disconnected from MQTT. Reason: MQTT_IDENTIFIER_REJECTED");
+      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_IDENTIFIER_REJECTED");
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_SERVER_UNAVAILABLE:
-      Logger.warn(TAG, "Disconnected from MQTT. Reason: MQTT_SERVER_UNAVAILABLE");
+      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_SERVER_UNAVAILABLE");
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-      Logger.warn(TAG, "Disconnected from MQTT. Reason: MQTT_MALFORMED_CREDENTIALS");
+      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_MALFORMED_CREDENTIALS");
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_NOT_AUTHORIZED:
-      Logger.warn(TAG, "Disconnected from MQTT. Reason: MQTT_NOT_AUTHORIZED");
+      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_NOT_AUTHORIZED");
       break;
     default:
-      Logger.warn(TAG, "Disconnected from MQTT. Reason: Unknown");
+      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: Unknown");
   }
   _state = MQTTState::MQTT_DISCONNECTED;
 }
 
 void Mycila::MQTTClass::_onMqttMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total) {
   const String data = String(payload, len);
-  Logger.debug(TAG, "Received message on topic %s: %s", topic, data.c_str());
+  ESP_LOGD(TAG, "Received message on topic %s: %s", topic, data.c_str());
   for (auto& listener : _listeners)
     if (_topicMatches(listener.topic.c_str(), topic))
       listener.callback(topic, data);
 }
 
 bool Mycila::MQTTClass::_topicMatches(const char* sub, const char* topic) {
-  // Logger.debug(TAG, "Match: %s vs %s ?", sub, topic);
+  // ESP_LOGD(TAG, "Match: %s vs %s ?", sub, topic);
   size_t spos;
 
   if (!sub || !topic || sub[0] == 0 || topic[0] == 0)

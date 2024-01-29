@@ -17,11 +17,11 @@ A simple and efficient MQTT helper for Arduino / ESP32 based on bertmelis/espMqt
 
 ```cpp
   Mycila::MQTT.onConnect([]() {
-    Mycila::Logger.info("APP", "MQTT connected");
+    Serial.println("MQTT connected");
   });
 
   Mycila::MQTT.subscribe("my-app/value/set", [](const String& topic, const String& payload) {
-    Mycila::Logger.info("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
+    Serial.printf("MQTT message received: %s -> %s\r\n", topic.c_str(), payload.c_str());
   });
 
   Mycila::MQTT.begin();
