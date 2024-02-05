@@ -15,7 +15,7 @@ A simple and efficient MQTT helper for Arduino / ESP32 based on bertmelis/espMqt
 
 ## MQTT Implementation
 
-`bertmelis/espMqttClient @^1.6.0`
+`bertmelis/espMqttClient @ ^1.6.0`
 
 ## Usage
 
