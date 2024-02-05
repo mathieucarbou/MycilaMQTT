@@ -13,6 +13,10 @@ A simple and efficient MQTT helper for Arduino / ESP32 based on bertmelis/espMqt
 - `onConnect()` callback runs in the `loop()` task and not the async `mqttClient` task
 - automatic management of will topic
 
+## MQTT Implementation
+
+`bertmelis/espMqttClient @^1.6.0`
+
 ## Usage
 
 ```cpp
