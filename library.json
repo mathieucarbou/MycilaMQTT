@@ -20,7 +20,7 @@
   "dependencies": [
     {
       "name": "espMqttClient",
-      "version": "https://github.com/mathieucarbou/espMqttClient#v1.5.0-esphome",
+      "version": "*",
       "platforms": "espressif32"
     }
   ],
