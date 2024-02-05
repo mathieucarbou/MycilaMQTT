@@ -113,4 +113,4 @@ jobs:
         run: platformio platform install ${{ matrix.platform }}
 
       - name: Build MQTTClient
-        run: platformio ci "examples/MQTTClient/MQTTClient.ino" -l '.' -b ${{ matrix.board }}
+        run: platformio ci "examples/MQTTClient/MQTTClient.ino" -l '.' -b ${{ matrix.board }} -O "lib_deps=bertmelis/espMqttClient@1.5.0"
