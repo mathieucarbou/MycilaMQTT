@@ -17,6 +17,14 @@
     "espressif32"
   ],
   "headers": "MycilaMQTT.h",
+  "dependencies": [
+    {
+      "owner": "bertmelis",
+      "name": "espMqttClient",
+      "version": "^1.6.0",
+      "platforms": "espressif32"
+    }
+  ],
   "export": {
     "include": [
       "examples",
