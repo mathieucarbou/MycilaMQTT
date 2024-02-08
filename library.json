@@ -1,6 +1,6 @@
 {
   "name": "MycilaMQTT",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "A simple and efficient MQTT helper for Arduino / ESP32 based on bertmelis/espMqttClient",
   "homepage": "https://github.com/mathieucarbou/MycilaMQTT",
   "repository": {
