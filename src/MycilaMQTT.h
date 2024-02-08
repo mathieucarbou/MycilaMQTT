@@ -79,7 +79,6 @@ namespace Mycila {
       void unsubscribe(const String& topic);
       void onConnect(MQTTConnectedCallback callback) { _onConnect = callback; }
 
-      void publish();
       bool publish(const char* topic, const char* payload, bool retain = false);
       inline bool publish(const String& topic, const String& payload, bool retain = false) {
         return publish(topic.c_str(), payload.c_str(), retain);
