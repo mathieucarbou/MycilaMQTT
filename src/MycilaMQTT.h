@@ -89,6 +89,7 @@ namespace Mycila {
 
       bool isEnabled() { return _state != MQTTState::MQTT_DISABLED; }
       bool isConnected() { return isEnabled() && _mqttClient->connected(); }
+      const char* getDisconnectReason() { return _disconnectReason; }
 
     private:
       MqttClient* _mqttClient = nullptr;
@@ -97,6 +98,7 @@ namespace Mycila {
       MQTTConnectedCallback _onConnect = nullptr;
       std::vector<MQTTMessageListener> _listeners;
       MQTTConfig _config;
+      const char* _disconnectReason = nullptr;
 
     private:
       void _connect();

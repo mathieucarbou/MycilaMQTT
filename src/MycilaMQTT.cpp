@@ -135,26 +135,27 @@ void Mycila::MQTTClass::_onMqttConnect(bool sessionPresent) {
 void Mycila::MQTTClass::_onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
   switch (reason) {
     case espMqttClientTypes::DisconnectReason::TCP_DISCONNECTED:
-      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: TCP_DISCONNECTED");
+      _disconnectReason = "TCP disconnected";
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_UNACCEPTABLE_PROTOCOL_VERSION");
+      _disconnectReason = "Unacceptable protocol version";
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_IDENTIFIER_REJECTED:
-      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_IDENTIFIER_REJECTED");
+      _disconnectReason = "ID rejected";
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_SERVER_UNAVAILABLE:
-      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_SERVER_UNAVAILABLE");
+      _disconnectReason = "Server unavailable";
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_MALFORMED_CREDENTIALS");
+      _disconnectReason = "Malformed credentials";
       break;
     case espMqttClientTypes::DisconnectReason::MQTT_NOT_AUTHORIZED:
-      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: MQTT_NOT_AUTHORIZED");
+      _disconnectReason = "Not authorized";
       break;
     default:
-      ESP_LOGW(TAG, "Disconnected from MQTT. Reason: Unknown");
+      _disconnectReason = "Unknown error";
   }
+  ESP_LOGW(TAG, "Disconnected from MQTT. Reason: %s", _disconnectReason);
   _state = MQTTState::MQTT_DISCONNECTED;
 }
 
