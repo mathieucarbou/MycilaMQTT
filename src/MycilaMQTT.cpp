@@ -32,14 +32,14 @@ void Mycila::MQTTClass::end() {
     return;
 
   ESP_LOGI(TAG, "Disable MQTT...");
-
+  
+  _state = MQTTState::MQTT_DISABLED;
   _mqttClient->publish(_config.willTopic.c_str(), 0, true, "offline");
   _mqttClient->disconnect();
+
   delete _mqttClient;
   _mqttClient = nullptr;
   _lastReconnectTry = 0;
-
-  _state = MQTTState::MQTT_DISABLED;
 }
 
 void Mycila::MQTTClass::loop() {
