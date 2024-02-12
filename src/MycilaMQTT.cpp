@@ -43,6 +43,9 @@ void Mycila::MQTTClass::end() {
 }
 
 void Mycila::MQTTClass::loop() {
+  if (_state == MQTTState::MQTT_DISABLED)
+    return;
+
   if (_state == MQTTState::MQTT_DISCONNECTED && millis() - _lastReconnectTry >= MYCILA_MQTT_RECONNECT_INTERVAL * 1000) {
     _lastReconnectTry = millis();
     _connect();
@@ -133,6 +136,9 @@ void Mycila::MQTTClass::_onMqttConnect(bool sessionPresent) {
 }
 
 void Mycila::MQTTClass::_onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
+  if (_state == MQTTState::MQTT_DISABLED)
+    return;
+
   switch (reason) {
     case espMqttClientTypes::DisconnectReason::TCP_DISCONNECTED:
       _disconnectReason = "TCP disconnected";
