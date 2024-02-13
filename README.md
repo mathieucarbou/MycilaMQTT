@@ -4,18 +4,12 @@
 [![Continuous Integration](https://github.com/mathieucarbou/MycilaMQTT/actions/workflows/ci.yml/badge.svg)](https://github.com/mathieucarbou/MycilaMQTT/actions/workflows/ci.yml)
 [![PlatformIO Registry](https://badges.registry.platformio.org/packages/mathieucarbou/library/MycilaMQTT.svg)](https://registry.platformio.org/libraries/mathieucarbou/MycilaMQTT)
 
-A simple and efficient MQTT helper for Arduino / ESP32 based on bertmelis/espMqttClient
+A simple and efficient MQTT helper for Arduino / ESP32 based on Espressif MQTT Client
 
-- Based on the very good and stable async MQTT client [bertmelis/espMqttClient](https://github.com/bertmelis/espMqttClient/)
 - Automatic reconnect
 - Automatic resubscribe
 - Dead simple configuration which allows easier integration with a configuration system and quick reload (`end()` and `begin()`) of the client
-- `onConnect()` callback runs in the `loop()` task and not the async `mqttClient` task
 - automatic management of will topic
-
-## MQTT Implementation
-
-`bertmelis/espMqttClient @ ^1.6.0`
 
 ## Usage
 
