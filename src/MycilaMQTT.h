@@ -4,8 +4,10 @@
  */
 #pragma once
 
+#include <mqtt_client.h>
+
 #include <WString.h>
-#include <espMqttClient.h>
+#include <esp32-hal-log.h>
 #include <functional>
 #include <vector>
 
@@ -18,13 +20,31 @@
 #define MYCILA_MQTT_RECONNECT_INTERVAL 5
 #endif
 
-#ifndef MYCILA_MQTT_WILL_TOPIC
-#define MYCILA_MQTT_WILL_TOPIC "/status"
-#endif
-
 #ifndef MYCILA_MQTT_CLEAN_SESSION
 #define MYCILA_MQTT_CLEAN_SESSION false
 #endif
+
+#ifndef MYCILA_MQTT_TASK_PRIORITY
+#define MYCILA_MQTT_TASK_PRIORITY 5
+#endif
+
+#ifndef MYCILA_MQTT_STACK_SIZE
+#define MYCILA_MQTT_STACK_SIZE 6144
+#endif
+
+#ifndef MYCILA_MQTT_BUFFER_SIZE
+#define MYCILA_MQTT_BUFFER_SIZE 1024
+#endif
+
+#ifndef MYCILA_MQTT_NETWORK_TIMEOUT
+#define MYCILA_MQTT_NETWORK_TIMEOUT 10
+#endif
+
+#ifndef MYCILA_MQTT_RETRANSMIT_TIMEOUT
+#define MYCILA_MQTT_RETRANSMIT_TIMEOUT 1
+#endif
+
+#define MYCILA_MQTT_TASK_NAME "mqtt_task"
 
 namespace Mycila {
   enum class MQTTState {
@@ -36,8 +56,6 @@ namespace Mycila {
     MQTT_CONNECTING,
     // CONNECTING -> CONNECTED
     MQTT_CONNECTED,
-    // CONNECTED -> PUBLISHING
-    MQTT_PUBLISHING,
     // CONNECTED -> DISCONNECTED
     // PUBLISHING -> DISCONNECTED
     MQTT_DISCONNECTED,
@@ -53,15 +71,14 @@ namespace Mycila {
   } MQTTMessageListener;
 
   typedef struct {
-      bool enabled;
       String server;
       uint16_t port;
       bool secured;
       String username;
       String password;
       String clientId;
-      String baseTopic;
       String willTopic;
+      uint16_t keepAlive;
   } MQTTConfig;
 
   class MQTTClass {
@@ -72,7 +89,6 @@ namespace Mycila {
       ~MQTTClass() { end(); }
 
       void begin();
-      void loop();
       void end();
 
       void subscribe(const String& topic, MQTTMessageCallback callback);
@@ -88,24 +104,20 @@ namespace Mycila {
       }
 
       bool isEnabled() { return _state != MQTTState::MQTT_DISABLED; }
-      bool isConnected() { return isEnabled() && _mqttClient->connected(); }
-      const char* getDisconnectReason() { return _disconnectReason; }
+      bool isConnected() { return _state == MQTTState::MQTT_CONNECTED; }
+      const char* getLastError() { return _lastError; }
 
     private:
-      MqttClient* _mqttClient = nullptr;
+      esp_mqtt_client_handle_t _mqttClient = nullptr;
       MQTTState _state = MQTTState::MQTT_DISABLED;
-      uint32_t _lastReconnectTry = 0;
       MQTTConnectedCallback _onConnect = nullptr;
       std::vector<MQTTMessageListener> _listeners;
       MQTTConfig _config;
-      const char* _disconnectReason = nullptr;
+      const char* _lastError = nullptr;
 
     private:
-      void _connect();
-      void _onMqttConnect(bool sessionPresent);
-      void _onMqttDisconnect(espMqttClientTypes::DisconnectReason reason);
-      void _onMqttMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total);
-      bool _topicMatches(const char* subscribed, const char* topic);
+      static void _mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
+      static bool _topicMatches(const char* subscribed, const char* topic);
   };
 
   extern MQTTClass MQTT;

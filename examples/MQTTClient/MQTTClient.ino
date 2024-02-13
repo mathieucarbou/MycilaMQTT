@@ -1,3 +1,5 @@
+#include <Arduino.h>
+#include <WiFi.h>
 #include <MycilaMQTT.h>
 
 #define KEY_DEBUG_ENABLE "debug_enable"
@@ -6,15 +8,14 @@
 
 const Mycila::MQTTConfig Mycila::MQTTClass::getConfig() {
   return {
-    true,             // enabled
     "192.168.125.90", // server
     1883,             // port
     false,            // ssl
     "homeassistant",  // user
     "",               // pass
     "my-app-1234",    // client id
-    "my-app",         // base topic
-    "my-app/status"   // will topic
+    "my-app/status",  // will topic
+    60,               // keep alive
   };
 }
 

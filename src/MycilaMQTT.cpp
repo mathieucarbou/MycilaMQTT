@@ -4,6 +4,7 @@
  */
 #include <MycilaMQTT.h>
 
+#include <algorithm>
 #include <functional>
 
 #define TAG "MQTT"
@@ -14,17 +15,73 @@ void Mycila::MQTTClass::begin() {
 
   _config = Mycila::MQTT.getConfig();
 
-  if (!_config.enabled)
+  if (_config.server.isEmpty() || _config.port <= 0) {
+    ESP_LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
     return;
+  }
 
   ESP_LOGI(TAG, "Enable MQTT...");
+  ESP_LOGD(TAG, "- Server %s:%u...", _config.server.c_str(), _config.port);
+  ESP_LOGD(TAG, "- Secured: %s", _config.secured ? "true" : "false");
+  ESP_LOGD(TAG, "- Username: %s", _config.username.c_str());
+  ESP_LOGD(TAG, "- Password: %s", _config.password.c_str());
+  ESP_LOGD(TAG, "- ClientId: %s", _config.clientId.c_str());
+  ESP_LOGD(TAG, "- Will: %s", _config.willTopic.c_str());
+  ESP_LOGD(TAG, "- Clean Session: %s", MYCILA_MQTT_CLEAN_SESSION ? "true" : "false");
 
-  if (_config.secured)
-    _mqttClient = static_cast<MqttClient*>(new espMqttClientSecure(uxTaskPriorityGet(NULL), xPortGetCoreID()));
-  else
-    _mqttClient = static_cast<MqttClient*>(new espMqttClient(uxTaskPriorityGet(NULL), xPortGetCoreID()));
+  const esp_mqtt_client_config_t cfg = {
+    .event_handle = nullptr,
+    .event_loop_handle = nullptr,
+    .host = _config.server.c_str(),
+    .uri = nullptr,
+    .port = _config.port,
+    .set_null_client_id = false,
+    .client_id = _config.clientId.c_str(),
+    .username = _config.username.c_str(),
+    .password = _config.password.c_str(),
+    .lwt_topic = _config.willTopic.c_str(),
+    .lwt_msg = "offline",
+    .lwt_qos = 0,
+    .lwt_retain = true,
+    .lwt_msg_len = 7,
+    .disable_clean_session = !MYCILA_MQTT_CLEAN_SESSION,
+    .keepalive = _config.keepAlive,
+    .disable_auto_reconnect = false,
+    .user_context = nullptr,
+    .task_prio = MYCILA_MQTT_TASK_PRIORITY,
+    .task_stack = MYCILA_MQTT_STACK_SIZE,
+    .buffer_size = MYCILA_MQTT_BUFFER_SIZE,
+    .cert_pem = nullptr,
+    .cert_len = 0,
+    .client_cert_pem = nullptr,
+    .client_cert_len = 0,
+    .client_key_pem = nullptr,
+    .client_key_len = 0,
+    .transport = _config.secured ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP,
+    .refresh_connection_after_ms = 0,
+    .psk_hint_key = nullptr,
+    .use_global_ca_store = false,
+    .crt_bundle_attach = nullptr,
+    .reconnect_timeout_ms = MYCILA_MQTT_RECONNECT_INTERVAL * 1000,
+    .alpn_protos = nullptr,
+    .clientkey_password = nullptr,
+    .clientkey_password_len = 0,
+    .protocol_ver = esp_mqtt_protocol_ver_t::MQTT_PROTOCOL_UNDEFINED,
+    .out_buffer_size = MYCILA_MQTT_BUFFER_SIZE,
+    .skip_cert_common_name_check = true,
+    .use_secure_element = false,
+    .ds_data = nullptr,
+    .network_timeout_ms = MYCILA_MQTT_NETWORK_TIMEOUT * 1000,
+    .disable_keepalive = false,
+    .path = nullptr,
+    .message_retransmit_timeout = MYCILA_MQTT_RETRANSMIT_TIMEOUT * 1000,
+  };
 
-  _connect();
+  _mqttClient = esp_mqtt_client_init(&cfg);
+  _lastError = nullptr;
+  _state = MQTTState::MQTT_CONNECTING;
+  esp_mqtt_client_register_event(_mqttClient, MQTT_EVENT_ANY, _mqttEventHandler, this);
+  esp_mqtt_client_start(_mqttClient);
 }
 
 void Mycila::MQTTClass::end() {
@@ -33,144 +90,100 @@ void Mycila::MQTTClass::end() {
 
   ESP_LOGI(TAG, "Disable MQTT...");
 
+  esp_mqtt_client_publish(_mqttClient, _config.willTopic.c_str(), "offline", 7, 0, true);
   _state = MQTTState::MQTT_DISABLED;
-  _mqttClient->publish(_config.willTopic.c_str(), 0, true, "offline");
-  _mqttClient->disconnect();
-
-  delete _mqttClient;
+  // esp_mqtt_client_stop(_mqttClient);
+  esp_mqtt_client_destroy(_mqttClient);
   _mqttClient = nullptr;
-  _lastReconnectTry = 0;
-}
-
-void Mycila::MQTTClass::loop() {
-  if (_state == MQTTState::MQTT_DISABLED)
-    return;
-
-  if (_state == MQTTState::MQTT_DISCONNECTED && millis() - _lastReconnectTry >= MYCILA_MQTT_RECONNECT_INTERVAL * 1000) {
-    _lastReconnectTry = millis();
-    _connect();
-    return;
-  }
-
-  if (_state == MQTTState::MQTT_CONNECTED) {
-    if (_onConnect)
-      _onConnect();
-    _state = MQTTState::MQTT_PUBLISHING;
-    return;
-  }
 }
 
 bool Mycila::MQTTClass::publish(const char* topic, const char* payload, bool retain) {
   if (!isConnected())
     return false;
-  return _mqttClient->publish(topic, 0, retain, payload);
+  return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) != ESP_FAIL;
 }
 
 void Mycila::MQTTClass::subscribe(const String& topic, MQTTMessageCallback callback) {
   _listeners.push_back({topic, callback});
   if (isConnected()) {
     ESP_LOGD(TAG, "Subscribing to: %s...", topic.c_str());
-    _mqttClient->subscribe(topic.c_str(), 0);
+    esp_mqtt_client_subscribe(_mqttClient, topic.c_str(), 0);
   }
 }
 
 void Mycila::MQTTClass::unsubscribe(const String& topic) {
   ESP_LOGD(TAG, "Unsubscribing from: %s...", topic.c_str());
-  _mqttClient->unsubscribe(topic.c_str());
+  esp_mqtt_client_unsubscribe(_mqttClient, topic.c_str());
   remove_if(_listeners.begin(), _listeners.end(), [&topic](const MQTTMessageListener& listener) {
     return listener.topic == topic;
   });
 }
 
-void Mycila::MQTTClass::_connect() {
-  _state = MQTTState::MQTT_CONNECTING;
-
-  if (_config.server.isEmpty() || _config.baseTopic.isEmpty() || _config.port <= 0) {
-    ESP_LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
-    return;
-  }
-
-  ESP_LOGI(TAG, "Connecting to MQTT server %s:%u...", _config.server.c_str(), _config.port);
-  ESP_LOGD(TAG, "- Secured: %s", _config.secured ? "true" : "false");
-  ESP_LOGD(TAG, "- Username: %s", _config.username.c_str());
-  ESP_LOGD(TAG, "- Password: %s", _config.password.c_str());
-  ESP_LOGD(TAG, "- ClientId: %s", _config.clientId.c_str());
-  ESP_LOGD(TAG, "- Prefix: %s", _config.baseTopic.c_str());
-  ESP_LOGD(TAG, "- Will: %s", _config.willTopic.c_str());
-  ESP_LOGD(TAG, "- Clean Session: %s", MYCILA_MQTT_CLEAN_SESSION ? "true" : "false");
-
-  if (_config.secured) {
-    static_cast<espMqttClientSecure*>(_mqttClient)->setInsecure();
-    static_cast<espMqttClientSecure*>(_mqttClient)->setServer(_config.server.c_str(), _config.port);
-    static_cast<espMqttClientSecure*>(_mqttClient)->setCredentials(_config.username.c_str(), _config.password.c_str());
-    static_cast<espMqttClientSecure*>(_mqttClient)->setWill(_config.willTopic.c_str(), 2, true, "offline");
-    static_cast<espMqttClientSecure*>(_mqttClient)->setClientId(_config.clientId.c_str());
-    static_cast<espMqttClientSecure*>(_mqttClient)->setCleanSession(MYCILA_MQTT_CLEAN_SESSION);
-    static_cast<espMqttClientSecure*>(_mqttClient)->onConnect(std::bind(&Mycila::MQTTClass::_onMqttConnect, this, std::placeholders::_1));
-    static_cast<espMqttClientSecure*>(_mqttClient)->onDisconnect(std::bind(&Mycila::MQTTClass::_onMqttDisconnect, this, std::placeholders::_1));
-    static_cast<espMqttClientSecure*>(_mqttClient)->onMessage(std::bind(&Mycila::MQTTClass::_onMqttMessage, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
-  } else {
-    static_cast<espMqttClient*>(_mqttClient)->setServer(_config.server.c_str(), _config.port);
-    static_cast<espMqttClient*>(_mqttClient)->setCredentials(_config.username.c_str(), _config.password.c_str());
-    static_cast<espMqttClient*>(_mqttClient)->setWill(_config.willTopic.c_str(), 2, true, "offline");
-    static_cast<espMqttClient*>(_mqttClient)->setClientId(_config.clientId.c_str());
-    static_cast<espMqttClient*>(_mqttClient)->setCleanSession(MYCILA_MQTT_CLEAN_SESSION);
-    static_cast<espMqttClient*>(_mqttClient)->onConnect(std::bind(&Mycila::MQTTClass::_onMqttConnect, this, std::placeholders::_1));
-    static_cast<espMqttClient*>(_mqttClient)->onDisconnect(std::bind(&Mycila::MQTTClass::_onMqttDisconnect, this, std::placeholders::_1));
-    static_cast<espMqttClient*>(_mqttClient)->onMessage(std::bind(&Mycila::MQTTClass::_onMqttMessage, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
-  }
-
-  _mqttClient->connect();
-}
-
-void Mycila::MQTTClass::_onMqttConnect(bool sessionPresent) {
-  ESP_LOGD(TAG, "Connected to MQTT");
-  _mqttClient->publish(_config.willTopic.c_str(), 0, true, "online");
-  ESP_LOGD(TAG, "Subscribing to %u topics...", _listeners.size());
-  for (auto& _listener : _listeners) {
-    String t = _listener.topic;
-    ESP_LOGD(TAG, "Subscribing to: %s", t.c_str());
-    _mqttClient->subscribe(t.c_str(), 0);
-  }
-  _state = MQTTState::MQTT_CONNECTED;
-}
-
-void Mycila::MQTTClass::_onMqttDisconnect(espMqttClientTypes::DisconnectReason reason) {
-  if (_state == MQTTState::MQTT_DISABLED)
-    return;
-
-  switch (reason) {
-    case espMqttClientTypes::DisconnectReason::TCP_DISCONNECTED:
-      _disconnectReason = "TCP disconnected";
+void Mycila::MQTTClass::_mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+  esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
+  esp_mqtt_client_handle_t mqttClient = event->client;
+  Mycila::MQTTClass* mqtt = (Mycila::MQTTClass*)event_handler_arg;
+  switch ((esp_mqtt_event_id_t)event_id) {
+    case MQTT_EVENT_ERROR:
+      switch (event->error_handle->error_type) {
+        case MQTT_ERROR_TYPE_CONNECTION_REFUSED:
+          ESP_LOGW(TAG, "MQTT_EVENT_ERROR: Connection refused");
+          mqtt->_lastError = "Connection refused";
+          break;
+        case MQTT_ERROR_TYPE_TCP_TRANSPORT:
+          ESP_LOGW(TAG, "MQTT_EVENT_ERROR: TCP transport error: %s", strerror(event->error_handle->esp_transport_sock_errno));
+          mqtt->_lastError = "TCP transport error";
+          break;
+        default:
+          ESP_LOGW(TAG, "MQTT_EVENT_ERROR: Unknown error");
+          mqtt->_lastError = "Unknown error";
+          break;
+      }
       break;
-    case espMqttClientTypes::DisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
-      _disconnectReason = "Unacceptable protocol version";
+    case MQTT_EVENT_CONNECTED:
+      ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
+      mqtt->_state = MQTTState::MQTT_CONNECTED;
+      esp_mqtt_client_publish(mqttClient, mqtt->_config.willTopic.c_str(), "online", 6, 0, true);
+      for (auto& _listener : mqtt->_listeners) {
+        String t = _listener.topic;
+        ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to: %s", t.c_str());
+        esp_mqtt_client_subscribe(mqttClient, t.c_str(), 0);
+      }
+      if (mqtt->_onConnect)
+        mqtt->_onConnect();
       break;
-    case espMqttClientTypes::DisconnectReason::MQTT_IDENTIFIER_REJECTED:
-      _disconnectReason = "ID rejected";
+    case MQTT_EVENT_DISCONNECTED:
+      ESP_LOGW(TAG, "MQTT_EVENT_DISCONNECTED");
+      mqtt->_state = MQTTState::MQTT_DISCONNECTED;
       break;
-    case espMqttClientTypes::DisconnectReason::MQTT_SERVER_UNAVAILABLE:
-      _disconnectReason = "Server unavailable";
+    case MQTT_EVENT_SUBSCRIBED:
       break;
-    case espMqttClientTypes::DisconnectReason::MQTT_MALFORMED_CREDENTIALS:
-      _disconnectReason = "Malformed credentials";
+    case MQTT_EVENT_UNSUBSCRIBED:
       break;
-    case espMqttClientTypes::DisconnectReason::MQTT_NOT_AUTHORIZED:
-      _disconnectReason = "Not authorized";
+    case MQTT_EVENT_DATA: {
+      String topic;
+      topic.reserve(event->topic_len + 1);
+      topic.concat((const char*)event->topic, event->topic_len);
+      String data;
+      data.reserve(event->data_len + 1);
+      data.concat((const char*)event->data, event->data_len);
+      ESP_LOGD(TAG, "MQTT_EVENT_DATA: %s %s", topic.c_str(), data.c_str());
+      for (auto& listener : mqtt->_listeners)
+        if (_topicMatches(listener.topic.c_str(), topic.c_str()))
+          listener.callback(topic, data);
+      break;
+    }
+    case MQTT_EVENT_BEFORE_CONNECT:
+      ESP_LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
+      mqtt->_state = MQTTState::MQTT_CONNECTING;
+      break;
+    case MQTT_EVENT_DELETED:
+      // see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
+      ESP_LOGW(TAG, "MQTT_EVENT_DELETED: %d", event->msg_id);
       break;
     default:
-      _disconnectReason = "Unknown error";
+      break;
   }
-  ESP_LOGW(TAG, "Disconnected from MQTT. Reason: %s", _disconnectReason);
-  _state = MQTTState::MQTT_DISCONNECTED;
-}
-
-void Mycila::MQTTClass::_onMqttMessage(const espMqttClientTypes::MessageProperties& properties, const char* topic, const uint8_t* payload, size_t len, size_t index, size_t total) {
-  const String data = String(payload, len);
-  ESP_LOGD(TAG, "Received message on topic %s: %s", topic, data.c_str());
-  for (auto& listener : _listeners)
-    if (_topicMatches(listener.topic.c_str(), topic))
-      listener.callback(topic, data);
 }
 
 bool Mycila::MQTTClass::_topicMatches(const char* sub, const char* topic) {
