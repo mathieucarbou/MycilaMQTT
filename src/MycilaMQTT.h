@@ -74,6 +74,7 @@ namespace Mycila {
       String server;
       uint16_t port;
       bool secured;
+      String serverCert;
       String username;
       String password;
       String clientId;

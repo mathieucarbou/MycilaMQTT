@@ -51,7 +51,7 @@ void Mycila::MQTTClass::begin() {
     .task_prio = MYCILA_MQTT_TASK_PRIORITY,
     .task_stack = MYCILA_MQTT_STACK_SIZE,
     .buffer_size = MYCILA_MQTT_BUFFER_SIZE,
-    .cert_pem = nullptr,
+    .cert_pem = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
     .cert_len = 0,
     .client_cert_pem = nullptr,
     .client_cert_len = 0,
