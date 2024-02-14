@@ -31,20 +31,6 @@ m/XriWr/Cq4h/JfB7NTsezVslgkBaoU=
 
 String baseTopic = "CC74C9F97C8D";
 
-const Mycila::MQTTConfig Mycila::MQTTClass::getConfig() {
-  return {
-    "test.mosquitto.org",   // server
-    8885,                   // port
-    true,                   // ssl
-    test_mosquito_org_cert, // server cert
-    "rw",                   // user
-    "readwrite",            // pass
-    "my-app-1234",          // client id
-    baseTopic + "/status",  // will topic
-    60,                     // keep alive
-  };
-}
-
 void setup() {
   Serial.begin(115200);
   while (!Serial)
@@ -66,7 +52,19 @@ void setup() {
     ESP_LOGI("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
   });
 
-  Mycila::MQTT.begin();
+  Mycila::MQTTConfig config = {
+    "test.mosquitto.org",   // server
+    8885,                   // port
+    true,                   // ssl
+    test_mosquito_org_cert, // server cert
+    "rw",                   // user
+    "readwrite",            // pass
+    "my-app-1234",          // client id
+    baseTopic + "/status",  // will topic
+    60,                     // keep alive
+  };
+
+  Mycila::MQTT.begin(config);
 }
 
 void loop() {

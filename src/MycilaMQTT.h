@@ -84,12 +84,9 @@ namespace Mycila {
 
   class MQTTClass {
     public:
-      static const MQTTConfig getConfig();
-
-    public:
       ~MQTTClass() { end(); }
 
-      void begin();
+      void begin(const MQTTConfig& config);
       void end();
 
       void subscribe(const String& topic, MQTTMessageCallback callback);

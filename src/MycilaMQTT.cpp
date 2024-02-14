@@ -9,11 +9,12 @@
 
 #define TAG "MQTT"
 
-void Mycila::MQTTClass::begin() {
+void Mycila::MQTTClass::begin(const MQTTConfig& config) {
   if (_state != MQTTState::MQTT_DISABLED)
     return;
 
-  _config = Mycila::MQTT.getConfig();
+  // copy config
+  _config = config;
 
   if (_config.server.isEmpty() || _config.port <= 0) {
     ESP_LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
