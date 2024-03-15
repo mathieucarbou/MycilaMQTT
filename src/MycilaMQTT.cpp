@@ -30,6 +30,78 @@ void Mycila::MQTTClass::begin(const MQTTConfig& config) {
   ESP_LOGD(TAG, "- Will: %s", _config.willTopic.c_str());
   ESP_LOGD(TAG, "- Clean Session: %s", MYCILA_MQTT_CLEAN_SESSION ? "true" : "false");
 
+#if ESP_IDF_VERSION_MAJOR == 5
+  const esp_mqtt_client_config_t cfg = {
+    .broker = {
+      .address = {
+        .uri = nullptr,
+        .hostname = _config.server.c_str(),
+        .transport = _config.secured ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP,
+        .path = nullptr,
+        .port = _config.port,
+      },
+      .verification = {
+        .use_global_ca_store = false,
+        .crt_bundle_attach = nullptr,
+        .certificate = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
+        .certificate_len = 0,
+        .psk_hint_key = nullptr,
+        .skip_cert_common_name_check = true,
+        .alpn_protos = nullptr,
+        .common_name = nullptr,
+      },
+    },
+    .credentials = {
+      .username = _config.username.c_str(),
+      .client_id = _config.clientId.c_str(),
+      .set_null_client_id = false,
+      .authentication = {
+        .password = _config.password.c_str(),
+        .certificate = nullptr,
+        .certificate_len = 0,
+        .key = nullptr,
+        .key_len = 0,
+        .key_password = nullptr,
+        .key_password_len = 0,
+        .use_secure_element = false,
+        .ds_data = nullptr,
+      },
+    },
+    .session = {
+      .last_will = {
+        .topic = _config.willTopic.c_str(),
+        .msg = "offline",
+        .msg_len = 7,
+        .qos = 0,
+        .retain = true,
+      },
+      .disable_clean_session = !MYCILA_MQTT_CLEAN_SESSION,
+      .keepalive = _config.keepAlive,
+      .disable_keepalive = false,
+      .protocol_ver = esp_mqtt_protocol_ver_t::MQTT_PROTOCOL_UNDEFINED,
+      .message_retransmit_timeout = MYCILA_MQTT_RETRANSMIT_TIMEOUT * 1000,
+    },
+    .network = {
+      .reconnect_timeout_ms = MYCILA_MQTT_RECONNECT_INTERVAL * 1000,
+      .timeout_ms = MYCILA_MQTT_NETWORK_TIMEOUT * 1000,
+      .refresh_connection_after_ms = 0,
+      .disable_auto_reconnect = false,
+      .transport = nullptr,
+      .if_name = nullptr,
+    },
+    .task = {
+      .priority = MYCILA_MQTT_TASK_PRIORITY,
+      .stack_size = MYCILA_MQTT_STACK_SIZE,
+    },
+    .buffer = {
+      .size = MYCILA_MQTT_BUFFER_SIZE,
+      .out_size = MYCILA_MQTT_BUFFER_SIZE,
+    },
+    .outbox = {
+      .limit = 0,
+    },
+  };
+#else
   const esp_mqtt_client_config_t cfg = {
     .event_handle = nullptr,
     .event_loop_handle = nullptr,
@@ -77,6 +149,7 @@ void Mycila::MQTTClass::begin(const MQTTConfig& config) {
     .path = nullptr,
     .message_retransmit_timeout = MYCILA_MQTT_RETRANSMIT_TIMEOUT * 1000,
   };
+#endif
 
   _mqttClient = esp_mqtt_client_init(&cfg);
   _lastError = nullptr;
