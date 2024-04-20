@@ -10,6 +10,7 @@ A simple and efficient MQTT helper for Arduino / ESP32 based on Espressif MQTT C
 - Automatic resubscribe
 - Dead simple configuration which allows easier integration with a configuration system and quick reload (`end()` and `begin()`) of the client
 - automatic management of will topic
+- Arduino 3 (ESP-IDF 5.1) Support
 
 ## Usage
 
