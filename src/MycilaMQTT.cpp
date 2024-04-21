@@ -22,7 +22,7 @@ void Mycila::MQTTClass::begin(const MQTTConfig& config) {
   }
 
   ESP_LOGI(TAG, "Enable MQTT...");
-  ESP_LOGD(TAG, "- Server %s:%u...", _config.server.c_str(), _config.port);
+  ESP_LOGD(TAG, "- Server %s:%" PRIu16 "...", _config.server.c_str(), _config.port);
   ESP_LOGD(TAG, "- Secured: %s", _config.secured ? "true" : "false");
   ESP_LOGD(TAG, "- Username: %s", _config.username.c_str());
   ESP_LOGD(TAG, "- Password: %s", _config.password.c_str());
