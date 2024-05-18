@@ -208,33 +208,45 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     case MQTT_EVENT_ERROR:
       switch (event->error_handle->error_type) {
         case MQTT_ERROR_TYPE_CONNECTION_REFUSED:
-          LOGW(TAG, "MQTT_EVENT_ERROR: Connection refused");
+#ifdef MYCILA_MQTT_DEBUG
+          LOGD(TAG, "MQTT_EVENT_ERROR: Connection refused");
+#endif
           mqtt->_lastError = "Connection refused";
           break;
         case MQTT_ERROR_TYPE_TCP_TRANSPORT:
-          LOGW(TAG, "MQTT_EVENT_ERROR: TCP transport error: %s", strerror(event->error_handle->esp_transport_sock_errno));
+#ifdef MYCILA_MQTT_DEBUG
+          LOGD(TAG, "MQTT_EVENT_ERROR: TCP transport error: %s", strerror(event->error_handle->esp_transport_sock_errno));
+#endif
           mqtt->_lastError = "TCP transport error";
           break;
         default:
-          LOGW(TAG, "MQTT_EVENT_ERROR: Unknown error");
+#ifdef MYCILA_MQTT_DEBUG
+          LOGD(TAG, "MQTT_EVENT_ERROR: Unknown error");
+#endif
           mqtt->_lastError = "Unknown error";
           break;
       }
       break;
     case MQTT_EVENT_CONNECTED:
-      LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
       mqtt->_state = MQTTState::MQTT_CONNECTED;
       esp_mqtt_client_publish(mqttClient, mqtt->_config.willTopic.c_str(), "online", 6, 0, true);
+#ifdef MYCILA_MQTT_DEBUG
+      LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
+#endif
       for (auto& _listener : mqtt->_listeners) {
         String t = _listener.topic;
-        LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to: %s", t.c_str());
         esp_mqtt_client_subscribe(mqttClient, t.c_str(), 0);
+#ifdef MYCILA_MQTT_DEBUG
+        LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", t.c_str());
+#endif
       }
       if (mqtt->_onConnect)
         mqtt->_onConnect();
       break;
     case MQTT_EVENT_DISCONNECTED:
-      LOGW(TAG, "MQTT_EVENT_DISCONNECTED");
+#ifdef MYCILA_MQTT_DEBUG
+      LOGD(TAG, "MQTT_EVENT_DISCONNECTED");
+#endif
       mqtt->_state = MQTTState::MQTT_DISCONNECTED;
       break;
     case MQTT_EVENT_SUBSCRIBED:
@@ -248,19 +260,25 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       String data;
       data.reserve(event->data_len + 1);
       data.concat((const char*)event->data, event->data_len);
+#ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DATA: %s %s", topic.c_str(), data.c_str());
+#endif
       for (auto& listener : mqtt->_listeners)
         if (_topicMatches(listener.topic.c_str(), topic.c_str()))
           listener.callback(topic, data);
       break;
     }
     case MQTT_EVENT_BEFORE_CONNECT:
+#ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
+#endif
       mqtt->_state = MQTTState::MQTT_CONNECTING;
       break;
     case MQTT_EVENT_DELETED:
-      // see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
-      LOGW(TAG, "MQTT_EVENT_DELETED: %d", event->msg_id);
+// see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
+#ifdef MYCILA_MQTT_DEBUG
+      LOGD(TAG, "MQTT_EVENT_DELETED: %d", event->msg_id);
+#endif
       break;
     default:
       break;
