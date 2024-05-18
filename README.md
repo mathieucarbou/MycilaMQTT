@@ -15,17 +15,17 @@ A simple and efficient MQTT helper for Arduino / ESP32 based on Espressif MQTT C
 ## Usage
 
 ```cpp
-  Mycila::MQTT.onConnect([]() {
+  mqtt.onConnect([]() {
     Serial.println("MQTT connected");
   });
 
-  Mycila::MQTT.subscribe("my-app/value/set", [](const String& topic, const String& payload) {
+  mqtt.subscribe("my-app/value/set", [](const String& topic, const String& payload) {
     Serial.printf("MQTT message received: %s -> %s\r\n", topic.c_str(), payload.c_str());
   });
 
-  Mycila::MQTT.begin();
+  mqtt.begin();
 ```
 
 ```c++
-  Mycila::MQTT.publish("my-app/value", "Hello World!");
+  mqtt.publish("my-app/value", "Hello World!");
 ```
