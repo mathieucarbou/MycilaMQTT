@@ -29,6 +29,8 @@ m/XriWr/Cq4h/JfB7NTsezVslgkBaoU=
 -----END CERTIFICATE-----
 )EOF";
 
+Mycila::MQTT mqtt;
+
 String baseTopic = "CC74C9F97C8D";
 
 void setup() {
@@ -44,11 +46,11 @@ void setup() {
     delay(1000);
   }
 
-  Mycila::MQTT.onConnect([]() {
+  mqtt.onConnect([]() {
     ESP_LOGI("APP", "MQTT connected");
   });
 
-  Mycila::MQTT.subscribe(baseTopic + "/value/set", [](const String& topic, const String& payload) {
+  mqtt.subscribe(baseTopic + "/value/set", [](const String& topic, const String& payload) {
     ESP_LOGI("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
   });
 
@@ -64,11 +66,11 @@ void setup() {
     60,                     // keep alive
   };
 
-  Mycila::MQTT.begin(config);
+  mqtt.begin(config);
 }
 
 void loop() {
-  Mycila::MQTT.publish(baseTopic + "/value", "Hello World!");
-  Mycila::MQTT.publish(baseTopic + "/value/set", "Hello you!");
+  mqtt.publish(baseTopic + "/value", "Hello World!");
+  mqtt.publish(baseTopic + "/value/set", "Hello you!");
   delay(2000);
 }

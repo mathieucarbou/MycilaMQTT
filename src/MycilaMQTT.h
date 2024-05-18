@@ -82,9 +82,9 @@ namespace Mycila {
       uint16_t keepAlive;
   } MQTTConfig;
 
-  class MQTTClass {
+  class MQTT {
     public:
-      ~MQTTClass() { end(); }
+      ~MQTT() { end(); }
 
       void begin(const MQTTConfig& config);
       void end();
@@ -117,6 +117,4 @@ namespace Mycila {
       static void _mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
       static bool _topicMatches(const char* subscribed, const char* topic);
   };
-
-  extern MQTTClass MQTT;
 } // namespace Mycila

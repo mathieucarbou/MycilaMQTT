@@ -9,7 +9,7 @@
 
 #define TAG "MQTT"
 
-void Mycila::MQTTClass::begin(const MQTTConfig& config) {
+void Mycila::MQTT::begin(const MQTTConfig& config) {
   if (_state != MQTTState::MQTT_DISABLED)
     return;
 
@@ -158,7 +158,7 @@ void Mycila::MQTTClass::begin(const MQTTConfig& config) {
   esp_mqtt_client_start(_mqttClient);
 }
 
-void Mycila::MQTTClass::end() {
+void Mycila::MQTT::end() {
   if (_state == MQTTState::MQTT_DISABLED)
     return;
 
@@ -171,13 +171,13 @@ void Mycila::MQTTClass::end() {
   _mqttClient = nullptr;
 }
 
-bool Mycila::MQTTClass::publish(const char* topic, const char* payload, bool retain) {
+bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) {
   if (!isConnected())
     return false;
   return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) != ESP_FAIL;
 }
 
-void Mycila::MQTTClass::subscribe(const String& topic, MQTTMessageCallback callback) {
+void Mycila::MQTT::subscribe(const String& topic, MQTTMessageCallback callback) {
   _listeners.push_back({topic, callback});
   if (isConnected()) {
     ESP_LOGD(TAG, "Subscribing to: %s...", topic.c_str());
@@ -185,7 +185,7 @@ void Mycila::MQTTClass::subscribe(const String& topic, MQTTMessageCallback callb
   }
 }
 
-void Mycila::MQTTClass::unsubscribe(const String& topic) {
+void Mycila::MQTT::unsubscribe(const String& topic) {
   ESP_LOGD(TAG, "Unsubscribing from: %s...", topic.c_str());
   esp_mqtt_client_unsubscribe(_mqttClient, topic.c_str());
   remove_if(_listeners.begin(), _listeners.end(), [&topic](const MQTTMessageListener& listener) {
@@ -193,10 +193,10 @@ void Mycila::MQTTClass::unsubscribe(const String& topic) {
   });
 }
 
-void Mycila::MQTTClass::_mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
   esp_mqtt_client_handle_t mqttClient = event->client;
-  Mycila::MQTTClass* mqtt = (Mycila::MQTTClass*)event_handler_arg;
+  Mycila::MQTT* mqtt = (Mycila::MQTT*)event_handler_arg;
   switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_ERROR:
       switch (event->error_handle->error_type) {
@@ -260,7 +260,7 @@ void Mycila::MQTTClass::_mqttEventHandler(void* event_handler_arg, esp_event_bas
   }
 }
 
-bool Mycila::MQTTClass::_topicMatches(const char* sub, const char* topic) {
+bool Mycila::MQTT::_topicMatches(const char* sub, const char* topic) {
   // ESP_LOGD(TAG, "Match: %s vs %s ?", sub, topic);
   size_t spos;
 
@@ -350,7 +350,3 @@ bool Mycila::MQTTClass::_topicMatches(const char* sub, const char* topic) {
   }
   return false;
 }
-
-namespace Mycila {
-  MQTTClass MQTT;
-} // namespace Mycila
