@@ -7,6 +7,20 @@
 #include <algorithm>
 #include <functional>
 
+#ifdef MYCILA_LOGGER_SUPPORT
+#include <MycilaLogger.h>
+extern Mycila::Logger logger;
+#define LOGD(tag, format, ...) logger.debug(tag, format, ##__VA_ARGS__)
+#define LOGI(tag, format, ...) logger.info(tag, format, ##__VA_ARGS__)
+#define LOGW(tag, format, ...) logger.warn(tag, format, ##__VA_ARGS__)
+#define LOGE(tag, format, ...) logger.error(tag, format, ##__VA_ARGS__)
+#else
+#define LOGD(tag, format, ...) ESP_LOGD(tag, format, ##__VA_ARGS__)
+#define LOGI(tag, format, ...) ESP_LOGI(tag, format, ##__VA_ARGS__)
+#define LOGW(tag, format, ...) ESP_LOGW(tag, format, ##__VA_ARGS__)
+#define LOGE(tag, format, ...) ESP_LOGE(tag, format, ##__VA_ARGS__)
+#endif
+
 #define TAG "MQTT"
 
 void Mycila::MQTT::begin(const MQTTConfig& config) {
@@ -17,18 +31,11 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
   _config = config;
 
   if (_config.server.isEmpty() || _config.port <= 0) {
-    ESP_LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
+    LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
     return;
   }
 
-  ESP_LOGI(TAG, "Enable MQTT...");
-  ESP_LOGD(TAG, "- Server %s:%" PRIu16 "...", _config.server.c_str(), _config.port);
-  ESP_LOGD(TAG, "- Secured: %s", _config.secured ? "true" : "false");
-  ESP_LOGD(TAG, "- Username: %s", _config.username.c_str());
-  ESP_LOGD(TAG, "- Password: %s", _config.password.c_str());
-  ESP_LOGD(TAG, "- ClientId: %s", _config.clientId.c_str());
-  ESP_LOGD(TAG, "- Will: %s", _config.willTopic.c_str());
-  ESP_LOGD(TAG, "- Clean Session: %s", MYCILA_MQTT_CLEAN_SESSION ? "true" : "false");
+  LOGI(TAG, "Enable MQTT...");
 
 #if ESP_IDF_VERSION_MAJOR == 5
   const esp_mqtt_client_config_t cfg = {
@@ -162,7 +169,7 @@ void Mycila::MQTT::end() {
   if (_state == MQTTState::MQTT_DISABLED)
     return;
 
-  ESP_LOGI(TAG, "Disable MQTT...");
+  LOGI(TAG, "Disable MQTT...");
 
   esp_mqtt_client_publish(_mqttClient, _config.willTopic.c_str(), "offline", 7, 0, true);
   _state = MQTTState::MQTT_DISABLED;
@@ -180,13 +187,13 @@ bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) 
 void Mycila::MQTT::subscribe(const String& topic, MQTTMessageCallback callback) {
   _listeners.push_back({topic, callback});
   if (isConnected()) {
-    ESP_LOGD(TAG, "Subscribing to: %s...", topic.c_str());
+    LOGD(TAG, "Subscribing to: %s...", topic.c_str());
     esp_mqtt_client_subscribe(_mqttClient, topic.c_str(), 0);
   }
 }
 
 void Mycila::MQTT::unsubscribe(const String& topic) {
-  ESP_LOGD(TAG, "Unsubscribing from: %s...", topic.c_str());
+  LOGD(TAG, "Unsubscribing from: %s...", topic.c_str());
   esp_mqtt_client_unsubscribe(_mqttClient, topic.c_str());
   remove_if(_listeners.begin(), _listeners.end(), [&topic](const MQTTMessageListener& listener) {
     return listener.topic == topic;
@@ -201,33 +208,33 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     case MQTT_EVENT_ERROR:
       switch (event->error_handle->error_type) {
         case MQTT_ERROR_TYPE_CONNECTION_REFUSED:
-          ESP_LOGW(TAG, "MQTT_EVENT_ERROR: Connection refused");
+          LOGW(TAG, "MQTT_EVENT_ERROR: Connection refused");
           mqtt->_lastError = "Connection refused";
           break;
         case MQTT_ERROR_TYPE_TCP_TRANSPORT:
-          ESP_LOGW(TAG, "MQTT_EVENT_ERROR: TCP transport error: %s", strerror(event->error_handle->esp_transport_sock_errno));
+          LOGW(TAG, "MQTT_EVENT_ERROR: TCP transport error: %s", strerror(event->error_handle->esp_transport_sock_errno));
           mqtt->_lastError = "TCP transport error";
           break;
         default:
-          ESP_LOGW(TAG, "MQTT_EVENT_ERROR: Unknown error");
+          LOGW(TAG, "MQTT_EVENT_ERROR: Unknown error");
           mqtt->_lastError = "Unknown error";
           break;
       }
       break;
     case MQTT_EVENT_CONNECTED:
-      ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
+      LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
       mqtt->_state = MQTTState::MQTT_CONNECTED;
       esp_mqtt_client_publish(mqttClient, mqtt->_config.willTopic.c_str(), "online", 6, 0, true);
       for (auto& _listener : mqtt->_listeners) {
         String t = _listener.topic;
-        ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to: %s", t.c_str());
+        LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to: %s", t.c_str());
         esp_mqtt_client_subscribe(mqttClient, t.c_str(), 0);
       }
       if (mqtt->_onConnect)
         mqtt->_onConnect();
       break;
     case MQTT_EVENT_DISCONNECTED:
-      ESP_LOGW(TAG, "MQTT_EVENT_DISCONNECTED");
+      LOGW(TAG, "MQTT_EVENT_DISCONNECTED");
       mqtt->_state = MQTTState::MQTT_DISCONNECTED;
       break;
     case MQTT_EVENT_SUBSCRIBED:
@@ -241,19 +248,19 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       String data;
       data.reserve(event->data_len + 1);
       data.concat((const char*)event->data, event->data_len);
-      ESP_LOGD(TAG, "MQTT_EVENT_DATA: %s %s", topic.c_str(), data.c_str());
+      LOGD(TAG, "MQTT_EVENT_DATA: %s %s", topic.c_str(), data.c_str());
       for (auto& listener : mqtt->_listeners)
         if (_topicMatches(listener.topic.c_str(), topic.c_str()))
           listener.callback(topic, data);
       break;
     }
     case MQTT_EVENT_BEFORE_CONNECT:
-      ESP_LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
+      LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
       mqtt->_state = MQTTState::MQTT_CONNECTING;
       break;
     case MQTT_EVENT_DELETED:
       // see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
-      ESP_LOGW(TAG, "MQTT_EVENT_DELETED: %d", event->msg_id);
+      LOGW(TAG, "MQTT_EVENT_DELETED: %d", event->msg_id);
       break;
     default:
       break;
@@ -261,7 +268,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 }
 
 bool Mycila::MQTT::_topicMatches(const char* sub, const char* topic) {
-  // ESP_LOGD(TAG, "Match: %s vs %s ?", sub, topic);
+  // LOGD(TAG, "Match: %s vs %s ?", sub, topic);
   size_t spos;
 
   if (!sub || !topic || sub[0] == 0 || topic[0] == 0)
