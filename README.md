@@ -29,3 +29,8 @@ A simple and efficient MQTT helper for Arduino / ESP32 based on Espressif MQTT C
 ```c++
   mqtt.publish("my-app/value", "Hello World!");
 ```
+
+# Alternatives
+
+[PsychicMqttClient](https://github.com/theelims/PsychicMqttClient) is also an MQTT library based on ESP-IDF written by [@theelims](https://github.com/theelims) that you might want to consider, which is more feature rich and has better support for CA bundles.
+
