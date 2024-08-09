@@ -37,11 +37,15 @@
 #endif
 
 #ifndef MYCILA_MQTT_NETWORK_TIMEOUT
-#define MYCILA_MQTT_NETWORK_TIMEOUT 10
+#define MYCILA_MQTT_NETWORK_TIMEOUT 5
 #endif
 
 #ifndef MYCILA_MQTT_RETRANSMIT_TIMEOUT
 #define MYCILA_MQTT_RETRANSMIT_TIMEOUT 1
+#endif
+
+#ifndef MYCILA_MQTT_OUTBOX_SIZE
+#define MYCILA_MQTT_OUTBOX_SIZE 0
 #endif
 
 #define MYCILA_MQTT_TASK_NAME "mqtt_task"
@@ -89,6 +93,9 @@ namespace Mycila {
       void begin(const MQTTConfig& config);
       void end();
 
+      void setAsync(bool async) { _async = async; }
+      bool isAsync() { return _async; }
+
       void subscribe(const String& topic, MQTTMessageCallback callback);
       void unsubscribe(const String& topic);
       void onConnect(MQTTConnectedCallback callback) { _onConnect = callback; }
@@ -112,6 +119,7 @@ namespace Mycila {
       std::vector<MQTTMessageListener> _listeners;
       MQTTConfig _config;
       const char* _lastError = nullptr;
+      bool _async = false;
 
     private:
       static void _mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data);

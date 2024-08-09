@@ -105,7 +105,7 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
       .out_size = MYCILA_MQTT_BUFFER_SIZE,
     },
     .outbox = {
-      .limit = 0,
+      .limit = MYCILA_MQTT_OUTBOX_SIZE,
     },
   };
 #else
@@ -170,10 +170,10 @@ void Mycila::MQTT::end() {
     return;
 
   LOGI(TAG, "Disable MQTT...");
-
   esp_mqtt_client_publish(_mqttClient, _config.willTopic.c_str(), "offline", 7, 0, true);
   _state = MQTTState::MQTT_DISABLED;
-  // esp_mqtt_client_stop(_mqttClient);
+  esp_mqtt_client_disconnect(_mqttClient);
+  esp_mqtt_client_stop(_mqttClient);
   esp_mqtt_client_destroy(_mqttClient);
   _mqttClient = nullptr;
 }
@@ -181,7 +181,10 @@ void Mycila::MQTT::end() {
 bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) {
   if (!isConnected())
     return false;
-  return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) != ESP_FAIL;
+  if (_async)
+    return esp_mqtt_client_enqueue(_mqttClient, topic, payload, 0, 0, retain, true) >= 0;
+  else
+    return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) >= 0;
 }
 
 void Mycila::MQTT::subscribe(const String& topic, MQTTMessageCallback callback) {
@@ -229,7 +232,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       break;
     case MQTT_EVENT_CONNECTED:
       mqtt->_state = MQTTState::MQTT_CONNECTED;
-      esp_mqtt_client_publish(mqttClient, mqtt->_config.willTopic.c_str(), "online", 6, 0, true);
+      mqtt->publish(mqtt->_config.willTopic.c_str(), "online", true);
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
 #endif
