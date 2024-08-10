@@ -48,57 +48,63 @@
 #define MYCILA_MQTT_OUTBOX_SIZE 0
 #endif
 
+#ifndef MYCILA_MQTT_KEEPALIVE
+#define MYCILA_MQTT_KEEPALIVE 60
+#endif
+
 #define MYCILA_MQTT_TASK_NAME "mqtt_task"
 
 namespace Mycila {
-  enum class MQTTState {
-    // CONNECTED -> DISABLED
-    // DISCONNECTED -> DISABLED
-    // PUBLISHING -> DISABLED
-    MQTT_DISABLED,
-    // DISABLED -> CONNECTING
-    MQTT_CONNECTING,
-    // CONNECTING -> CONNECTED
-    MQTT_CONNECTED,
-    // CONNECTED -> DISCONNECTED
-    // PUBLISHING -> DISCONNECTED
-    MQTT_DISCONNECTED,
-  };
-
-  typedef std::function<void(const String& topic, const String& payload)> MQTTMessageCallback;
-  typedef std::function<void()> MQTTConnectedCallback;
-
-  typedef struct
-  {
-      String topic;
-      MQTTMessageCallback callback;
-  } MQTTMessageListener;
-
-  typedef struct {
-      String server;
-      uint16_t port;
-      bool secured;
-      String serverCert;
-      String username;
-      String password;
-      String clientId;
-      String willTopic;
-      uint16_t keepAlive;
-  } MQTTConfig;
-
   class MQTT {
     public:
+      enum class State {
+        // CONNECTED -> DISABLED
+        // DISCONNECTED -> DISABLED
+        // PUBLISHING -> DISABLED
+        MQTT_DISABLED,
+        // DISABLED -> CONNECTING
+        MQTT_CONNECTING,
+        // CONNECTING -> CONNECTED
+        MQTT_CONNECTED,
+        // CONNECTED -> DISCONNECTED
+        // PUBLISHING -> DISCONNECTED
+        MQTT_DISCONNECTED,
+      };
+
+      typedef std::function<void(const String& topic, const String& payload)> MessageCallback;
+      typedef std::function<void()> ConnectedCallback;
+
+      typedef struct
+      {
+          String topic;
+          MessageCallback callback;
+      } MQTTMessageListener;
+
+      typedef struct {
+          String server = emptyString;
+          uint16_t port = 1883;
+          bool secured = false;
+          const uint8_t* certBundle = nullptr;
+          size_t certBundleSize = 0;
+          String serverCert = emptyString;
+          String username = emptyString;
+          String password = emptyString;
+          String clientId = emptyString;
+          String willTopic = emptyString;
+          uint16_t keepAlive = MYCILA_MQTT_KEEPALIVE;
+      } Config;
+
       ~MQTT() { end(); }
 
-      void begin(const MQTTConfig& config);
+      void begin(const Config& config);
       void end();
 
       void setAsync(bool async) { _async = async; }
       bool isAsync() { return _async; }
 
-      void subscribe(const String& topic, MQTTMessageCallback callback);
+      void subscribe(const String& topic, MessageCallback callback);
       void unsubscribe(const String& topic);
-      void onConnect(MQTTConnectedCallback callback) { _onConnect = callback; }
+      void onConnect(ConnectedCallback callback) { _onConnect = callback; }
 
       bool publish(const char* topic, const char* payload, bool retain = false);
       inline bool publish(const String& topic, const String& payload, bool retain = false) {
@@ -108,16 +114,16 @@ namespace Mycila {
         return publish(topic, payload.c_str(), retain);
       }
 
-      bool isEnabled() { return _state != MQTTState::MQTT_DISABLED; }
-      bool isConnected() { return _state == MQTTState::MQTT_CONNECTED; }
+      bool isEnabled() { return _state != State::MQTT_DISABLED; }
+      bool isConnected() { return _state == State::MQTT_CONNECTED; }
       const char* getLastError() { return _lastError; }
 
     private:
       esp_mqtt_client_handle_t _mqttClient = nullptr;
-      MQTTState _state = MQTTState::MQTT_DISABLED;
-      MQTTConnectedCallback _onConnect = nullptr;
+      State _state = State::MQTT_DISABLED;
+      ConnectedCallback _onConnect = nullptr;
       std::vector<MQTTMessageListener> _listeners;
-      MQTTConfig _config;
+      Config _config;
       const char* _lastError = nullptr;
       bool _async = false;
 

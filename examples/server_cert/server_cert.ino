@@ -54,23 +54,21 @@ void setup() {
     ESP_LOGI("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
   });
 
-  Mycila::MQTTConfig config = {
-    "test.mosquitto.org",   // server
-    8885,                   // port
-    true,                   // ssl
-    test_mosquito_org_cert, // server cert
-    "rw",                   // user
-    "readwrite",            // pass
-    "my-app-1234",          // client id
-    baseTopic + "/status",  // will topic
-    60,                     // keep alive
-  };
+  Mycila::MQTT::Config config;
+  config.server = "test.mosquitto.org";
+  config.port = 8885;
+  config.secured = true;
+  config.serverCert = test_mosquito_org_cert;
+  config.username = "rw";
+  config.password = "readwrite";
+  config.clientId = "my-app-1234";
+  config.willTopic = baseTopic + "/status";
 
+  // mqtt.setAsync(true);
   mqtt.begin(config);
 }
 
 void loop() {
-  mqtt.publish(baseTopic + "/value", "Hello World!");
-  mqtt.publish(baseTopic + "/value/set", "Hello you!");
-  delay(2000);
+  mqtt.publish(baseTopic + "/value", String(millis()));
+  delay(500);
 }

@@ -4,6 +4,9 @@
  */
 #include <MycilaMQTT.h>
 
+#include <Arduino.h>
+#include <esp_crt_bundle.h>
+
 #include <algorithm>
 #include <functional>
 
@@ -23,8 +26,8 @@ extern Mycila::Logger logger;
 
 #define TAG "MQTT"
 
-void Mycila::MQTT::begin(const MQTTConfig& config) {
-  if (_state != MQTTState::MQTT_DISABLED)
+void Mycila::MQTT::begin(const MQTT::Config& config) {
+  if (_state != MQTT::State::MQTT_DISABLED)
     return;
 
   // copy config
@@ -37,7 +40,13 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
 
   LOGI(TAG, "Enable MQTT...");
 
+  const bool auth = !_config.username.isEmpty() && !_config.password.isEmpty();
+  const bool useBundle = _config.secured && _config.serverCert.isEmpty();
+
 #if ESP_IDF_VERSION_MAJOR == 5
+  if (_config.certBundle) {
+    esp_crt_bundle_set(_config.certBundle, _config.certBundleSize);
+  }
   const esp_mqtt_client_config_t cfg = {
     .broker = {
       .address = {
@@ -49,8 +58,8 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
       },
       .verification = {
         .use_global_ca_store = false,
-        .crt_bundle_attach = nullptr,
-        .certificate = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
+        .crt_bundle_attach = useBundle ? esp_crt_bundle_attach : nullptr,
+        .certificate = !useBundle && _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
         .certificate_len = 0,
         .psk_hint_key = nullptr,
         .skip_cert_common_name_check = true,
@@ -59,11 +68,11 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
       },
     },
     .credentials = {
-      .username = _config.username.c_str(),
+      .username = auth ? _config.username.c_str() : nullptr,
       .client_id = _config.clientId.c_str(),
       .set_null_client_id = false,
       .authentication = {
-        .password = _config.password.c_str(),
+        .password = auth ? _config.password.c_str() : nullptr,
         .certificate = nullptr,
         .certificate_len = 0,
         .key = nullptr,
@@ -109,6 +118,9 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
     },
   };
 #else
+  if (_config.certBundle) {
+    arduino_esp_crt_bundle_set(_config.certBundle);
+  }
   const esp_mqtt_client_config_t cfg = {
     .event_handle = nullptr,
     .event_loop_handle = nullptr,
@@ -117,8 +129,8 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
     .port = _config.port,
     .set_null_client_id = false,
     .client_id = _config.clientId.c_str(),
-    .username = _config.username.c_str(),
-    .password = _config.password.c_str(),
+    .username = auth ? _config.username.c_str() : nullptr,
+    .password = auth ? _config.password.c_str() : nullptr,
     .lwt_topic = _config.willTopic.c_str(),
     .lwt_msg = "offline",
     .lwt_qos = 0,
@@ -131,7 +143,7 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
     .task_prio = MYCILA_MQTT_TASK_PRIORITY,
     .task_stack = MYCILA_MQTT_STACK_SIZE,
     .buffer_size = MYCILA_MQTT_BUFFER_SIZE,
-    .cert_pem = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
+    .cert_pem = !useBundle && _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
     .cert_len = 0,
     .client_cert_pem = nullptr,
     .client_cert_len = 0,
@@ -141,7 +153,7 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
     .refresh_connection_after_ms = 0,
     .psk_hint_key = nullptr,
     .use_global_ca_store = false,
-    .crt_bundle_attach = nullptr,
+    .crt_bundle_attach = useBundle ? arduino_esp_crt_bundle_attach : nullptr,
     .reconnect_timeout_ms = MYCILA_MQTT_RECONNECT_INTERVAL * 1000,
     .alpn_protos = nullptr,
     .clientkey_password = nullptr,
@@ -158,20 +170,24 @@ void Mycila::MQTT::begin(const MQTTConfig& config) {
   };
 #endif
 
-  _mqttClient = esp_mqtt_client_init(&cfg);
   _lastError = nullptr;
-  _state = MQTTState::MQTT_CONNECTING;
-  esp_mqtt_client_register_event(_mqttClient, MQTT_EVENT_ANY, _mqttEventHandler, this);
-  esp_mqtt_client_start(_mqttClient);
+  _mqttClient = esp_mqtt_client_init(&cfg);
+  if (!_mqttClient) {
+    LOGE(TAG, "Failed to create MQTT client");
+    return;
+  }
+  ESP_ERROR_CHECK(esp_mqtt_client_register_event(_mqttClient, MQTT_EVENT_ANY, _mqttEventHandler, this));
+  ESP_ERROR_CHECK(esp_mqtt_client_start(_mqttClient));
+  _state = MQTT::State::MQTT_CONNECTING;
 }
 
 void Mycila::MQTT::end() {
-  if (_state == MQTTState::MQTT_DISABLED)
+  if (_state == MQTT::State::MQTT_DISABLED)
     return;
 
   LOGI(TAG, "Disable MQTT...");
   esp_mqtt_client_publish(_mqttClient, _config.willTopic.c_str(), "offline", 7, 0, true);
-  _state = MQTTState::MQTT_DISABLED;
+  _state = MQTT::State::MQTT_DISABLED;
   esp_mqtt_client_disconnect(_mqttClient);
   esp_mqtt_client_stop(_mqttClient);
   esp_mqtt_client_destroy(_mqttClient);
@@ -187,7 +203,7 @@ bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) 
     return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) >= 0;
 }
 
-void Mycila::MQTT::subscribe(const String& topic, MQTTMessageCallback callback) {
+void Mycila::MQTT::subscribe(const String& topic, MQTT::MessageCallback callback) {
   _listeners.push_back({topic, callback});
   if (isConnected()) {
     LOGD(TAG, "Subscribing to: %s...", topic.c_str());
@@ -231,7 +247,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       }
       break;
     case MQTT_EVENT_CONNECTED:
-      mqtt->_state = MQTTState::MQTT_CONNECTED;
+      mqtt->_state = MQTT::State::MQTT_CONNECTED;
       mqtt->publish(mqtt->_config.willTopic.c_str(), "online", true);
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
@@ -250,7 +266,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DISCONNECTED");
 #endif
-      mqtt->_state = MQTTState::MQTT_DISCONNECTED;
+      mqtt->_state = MQTT::State::MQTT_DISCONNECTED;
       break;
     case MQTT_EVENT_SUBSCRIBED:
       break;
@@ -275,7 +291,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
 #endif
-      mqtt->_state = MQTTState::MQTT_CONNECTING;
+      mqtt->_state = MQTT::State::MQTT_CONNECTING;
       break;
     case MQTT_EVENT_DELETED:
 // see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
