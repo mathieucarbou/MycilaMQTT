@@ -57,7 +57,7 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
       },
       .verification = {
         .use_global_ca_store = false,
-        .crt_bundle_attach = _config.secured && _config.serverCert.isEmpty() ? esp_crt_bundle_attach : nullptr,
+        .crt_bundle_attach = _config.secured && _config.certBundle ? esp_crt_bundle_attach : nullptr,
         .certificate = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
         .certificate_len = 0,
         .psk_hint_key = nullptr,
@@ -152,7 +152,7 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
     .refresh_connection_after_ms = 0,
     .psk_hint_key = nullptr,
     .use_global_ca_store = false,
-    .crt_bundle_attach = _config.secured && _config.serverCert.isEmpty() ? arduino_esp_crt_bundle_attach : nullptr,
+    .crt_bundle_attach = _config.secured && _config.certBundle ? arduino_esp_crt_bundle_attach : nullptr,
     .reconnect_timeout_ms = MYCILA_MQTT_RECONNECT_INTERVAL * 1000,
     .alpn_protos = nullptr,
     .clientkey_password = nullptr,

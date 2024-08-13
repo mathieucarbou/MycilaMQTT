@@ -2,11 +2,8 @@
 #include <MycilaMQTT.h>
 #include <WiFi.h>
 
-extern const uint8_t ca_certs_bundle_start[] asm("_binary_data_adafruit_ca_certs_bundle_bin_start");
-extern const uint8_t ca_certs_bundle_end[] asm("_binary_data_adafruit_ca_certs_bundle_bin_end");
-
-// extern const uint8_t ca_certs_bundle_start[] asm("_binary_data_mozilla_ca_certs_bundle_bin_start");
-// extern const uint8_t ca_certs_bundle_end[] asm("_binary_data_mozilla_ca_certs_bundle_bin_end");
+extern const uint8_t ca_certs_bundle_start[] asm("_binary__pio_data_cacerts_bin_start");
+extern const uint8_t ca_certs_bundle_end[] asm("_binary__pio_data_cacerts_bin_end");
 
 Mycila::MQTT mqtt;
 

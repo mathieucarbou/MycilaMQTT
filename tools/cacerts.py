@@ -33,36 +33,19 @@ try:
 except ImportError:
     env.Execute("$PYTHONEXE -m pip install cryptography")
 
-
-ca_bundle_bin_file = env.GetProjectOption("board_ssl_cert_source") + '_ca_certs_bundle.bin'
-mozilla_cacert_url = 'https://curl.se/ca/cacert.pem'
-adafruit_cacert_url = 'https://raw.githubusercontent.com/adafruit/certificates/main/data/roots.pem'
-certs_dir = Path("./data/ca_certs")
-binary_dir = Path("./data")
-
+output_dir = ".pio/data"
 quiet = False
 
-def download_cacert_file(source):
-    if source == "mozilla":
-        response = requests.get(mozilla_cacert_url)
-    elif source == "adafruit":
-        response = requests.get(adafruit_cacert_url)
-    else:
-        raise InputError('Invalid certificate source')
+def download_cacert_file():
+    cacert_url = env.GetProjectOption("custom_cacert_url", "")
+    if cacert_url == "":
+        raise Exception("Please specify the URL of the CA certificate bundle with the 'custom_cacert_url' option in platformio.ini")
 
+    response = requests.get(cacert_url)
     if response.status_code == 200:
-
-        # Ensure the directory exists, create it if necessary
-        os.makedirs(certs_dir, exist_ok=True)
-
-        # Generate the full path to the output file
-        output_file = os.path.join(certs_dir, env.GetProjectOption("board_ssl_cert_source") + "_cacert.pem")
-
-        # Write the certificate bundle to the output file with utf-8 encoding
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(os.path.join(output_dir, "cacerts.pem"), "w", encoding="utf-8") as f:
             f.write(response.text)
-
-        status('Certificate bundle downloaded to: %s' % output_file)
+        status('Certificate bundle downloaded to: %s' % os.path.join(output_dir, "cacerts.pem"))
     else:
         status('Failed to fetch the certificate bundle.')
 
@@ -71,21 +54,16 @@ def status(msg):
     if not quiet:
         critical(msg)
 
-
 def critical(msg):
     """ Print critical message to stderr """
-    sys.stderr.write('SSL Cert Store: ')
+    sys.stderr.write('cacerts.py: ')
     sys.stderr.write(msg)
     sys.stderr.write('\n')
-
 
 class CertificateBundle:
     def __init__(self):
         self.certificates = []
         self.compressed_crts = []
-
-        if os.path.isfile(ca_bundle_bin_file):
-            os.remove(ca_bundle_bin_file)
 
     def add_from_path(self, crts_path):
 
@@ -176,36 +154,24 @@ class InputError(RuntimeError):
 
 
 def main():
+    os.makedirs(output_dir, exist_ok=True)
+
+    output = os.path.join(output_dir, "cacerts.bin")
+    if os.path.exists(output):
+        status('Certificate bundle already exists')
+        return
+
+    source = os.path.join(output_dir, "cacerts.pem")
+    if not os.path.exists(source):
+        download_cacert_file()
 
     bundle = CertificateBundle()
+    bundle.add_from_file(source)
 
-    try:
-        cert_source = env.GetProjectOption("board_ssl_cert_source")
+    with open(output, 'wb') as f:
+        f.write(bundle.create_bundle())
 
-        if (cert_source == "mozilla" or cert_source == "adafruit"):
-            download_cacert_file(cert_source)
-            bundle.add_from_file(os.path.join(certs_dir, env.GetProjectOption("board_ssl_cert_source") + "_cacert.pem"))
-        elif (cert_source == "folder"):
-            bundle.add_from_path(certs_dir)
-    except ValueError:
-        critical('Invalid configuration option: use \'board_ssl_cert_source\' parameter in platformio.ini' )
-        raise InputError('Invalid certificate')
-
-    status('Successfully added %d certificates in total' % len(bundle.certificates))
-
-    crt_bundle = bundle.create_bundle()
-
-    # Ensure the directory exists, create it if necessary
-    os.makedirs(binary_dir, exist_ok=True)
-
-    output_file = os.path.join(binary_dir, ca_bundle_bin_file)
-
-    with open(output_file, 'wb') as f:
-        f.write(crt_bundle)
-
-    status('Successfully created %s' % output_file)
-
-
+    status('cacert bundle created: %s' % output)
 try:
     main()
 except InputError as e:

@@ -108,7 +108,11 @@ jobs:
       fail-fast: false
       matrix:
         environment: ${{ fromJSON(needs.pio_envs.outputs.pio_default_envs) }}
-        example: ["mqtt", "server_cert", "ca_certs_bundle"]
+        example: [
+          "mqtt", 
+          "server_cert", 
+          "cacerts"
+          ]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
