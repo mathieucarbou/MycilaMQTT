@@ -202,19 +202,19 @@ bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) 
     return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) >= 0;
 }
 
-void Mycila::MQTT::subscribe(const String& topic, MQTT::MessageCallback callback) {
+void Mycila::MQTT::subscribe(const char* topic, MQTT::MessageCallback callback) {
   _listeners.push_back({topic, callback});
   if (isConnected()) {
-    LOGD(TAG, "Subscribing to: %s...", topic.c_str());
-    esp_mqtt_client_subscribe(_mqttClient, topic.c_str(), 0);
+    LOGD(TAG, "Subscribing to: %s...", topic);
+    esp_mqtt_client_subscribe(_mqttClient, topic, 0);
   }
 }
 
-void Mycila::MQTT::unsubscribe(const String& topic) {
-  LOGD(TAG, "Unsubscribing from: %s...", topic.c_str());
-  esp_mqtt_client_unsubscribe(_mqttClient, topic.c_str());
-  remove_if(_listeners.begin(), _listeners.end(), [&topic](const MQTTMessageListener& listener) {
-    return listener.topic == topic;
+void Mycila::MQTT::unsubscribe(const char* topic) {
+  LOGD(TAG, "Unsubscribing from: %s...", topic);
+  esp_mqtt_client_unsubscribe(_mqttClient, topic);
+  remove_if(_listeners.begin(), _listeners.end(), [topic](const MQTTMessageListener& listener) {
+    return listener.topic.equals(topic);
   });
 }
 

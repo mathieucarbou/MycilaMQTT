@@ -102,8 +102,12 @@ namespace Mycila {
       void setAsync(bool async) { _async = async; }
       bool isAsync() { return _async; }
 
-      void subscribe(const String& topic, MessageCallback callback);
-      void unsubscribe(const String& topic);
+      void subscribe(const char* topic, MessageCallback callback);
+      void subscribe(const String& topic, MessageCallback callback) { subscribe(topic.c_str(), callback); }
+
+      void unsubscribe(const char* topic);
+      void unsubscribe(const String& topic) { unsubscribe(topic.c_str()); }
+
       void onConnect(ConnectedCallback callback) { _onConnect = callback; }
 
       bool publish(const char* topic, const char* payload, bool retain = false);
