@@ -10,7 +10,7 @@
 [![GitHub latest commit](https://badgen.net/github/last-commit/mathieucarbou/MycilaMQTT)](https://GitHub.com/mathieucarbou/MycilaMQTT/commit/)
 [![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/mathieucarbou/MycilaMQTT)
 
-A simple and efficient MQTT helper for Arduino / ESP32 based on Espressif MQTT Client
+A simple and efficient MQTT/MQTTS client for Arduino / ESP32 based on Espressif API
 
 - Automatic reconnect
 - Automatic resubscribe
