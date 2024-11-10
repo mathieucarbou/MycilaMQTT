@@ -11,10 +11,10 @@
 #include <functional>
 #include <vector>
 
-#define MYCILA_MQTT_VERSION          "4.2.2"
+#define MYCILA_MQTT_VERSION          "4.2.3"
 #define MYCILA_MQTT_VERSION_MAJOR    4
 #define MYCILA_MQTT_VERSION_MINOR    2
-#define MYCILA_MQTT_VERSION_REVISION 2
+#define MYCILA_MQTT_VERSION_REVISION 3
 
 #ifndef MYCILA_MQTT_RECONNECT_INTERVAL
   #define MYCILA_MQTT_RECONNECT_INTERVAL 5
