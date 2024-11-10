@@ -252,10 +252,9 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
 #endif
       for (auto& _listener : mqtt->_listeners) {
-        String t = _listener.topic;
-        esp_mqtt_client_subscribe(mqttClient, t.c_str(), 0);
+        esp_mqtt_client_subscribe(mqttClient, _listener.topic.c_str(), 0);
 #ifdef MYCILA_MQTT_DEBUG
-        LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", t.c_str());
+        LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener.topic.c_str());
 #endif
       }
       if (mqtt->_onConnect)
@@ -272,9 +271,11 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     case MQTT_EVENT_UNSUBSCRIBED:
       break;
     case MQTT_EVENT_DATA: {
+      // copy topic
       String topic;
       topic.reserve(event->topic_len + 1);
       topic.concat((const char*)event->topic, event->topic_len);
+      // copy data
       String data;
       data.reserve(event->data_len + 1);
       data.concat((const char*)event->data, event->data_len);
