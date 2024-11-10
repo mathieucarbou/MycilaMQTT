@@ -2,7 +2,7 @@
 #include <MycilaMQTT.h>
 #include <WiFi.h>
 
-static const char* test_mosquito_org_cert PROGMEM = R"EOF(
+static const char* test_mosquito_org_cert = R"EOF(
 -----BEGIN CERTIFICATE-----
 MIIEAzCCAuugAwIBAgIUBY1hlCGvdj4NhBXkZ/uLUZNILAwwDQYJKoZIhvcNAQEL
 BQAwgZAxCzAJBgNVBAYTAkdCMRcwFQYDVQQIDA5Vbml0ZWQgS2luZ2RvbTEOMAwG
@@ -58,7 +58,7 @@ void setup() {
   config.server = "test.mosquitto.org";
   config.port = 8885;
   config.secured = true;
-  config.serverCert = test_mosquito_org_cert;
+  config.serverCertPtr = test_mosquito_org_cert;
   config.username = "rw";
   config.password = "readwrite";
   config.clientId = "my-app-1234";

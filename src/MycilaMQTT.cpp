@@ -58,7 +58,7 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
       .verification = {
         .use_global_ca_store = false,
         .crt_bundle_attach = _config.secured && _config.certBundle ? esp_crt_bundle_attach : nullptr,
-        .certificate = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
+        .certificate = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : (_config.secured && _config.serverCertPtr ? _config.serverCertPtr : nullptr),
         .certificate_len = 0,
         .psk_hint_key = nullptr,
         .skip_cert_common_name_check = true,
@@ -142,7 +142,7 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
     .task_prio = MYCILA_MQTT_TASK_PRIORITY,
     .task_stack = MYCILA_MQTT_STACK_SIZE,
     .buffer_size = MYCILA_MQTT_BUFFER_SIZE,
-    .cert_pem = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : nullptr,
+    .cert_pem = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : (_config.secured && _config.serverCertPtr ? _config.serverCertPtr : nullptr),
     .cert_len = 0,
     .client_cert_pem = nullptr,
     .client_cert_len = 0,

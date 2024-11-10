@@ -84,14 +84,17 @@ namespace Mycila {
           String server = emptyString;
           uint16_t port = 1883;
           bool secured = false;
-          const uint8_t* certBundle = nullptr;
-          size_t certBundleSize = 0;
-          String serverCert = emptyString;
+          uint16_t keepAlive = MYCILA_MQTT_KEEPALIVE;
           String username = emptyString;
           String password = emptyString;
           String clientId = emptyString;
           String willTopic = emptyString;
-          uint16_t keepAlive = MYCILA_MQTT_KEEPALIVE;
+
+          String serverCert = emptyString;     // Server certificate (PEM format, loaded from File)
+          const char* serverCertPtr = nullptr; // Server certificate pointer (PEM format)
+
+          const uint8_t* certBundle = nullptr; // CA certificate bundle pointer
+          size_t certBundleSize = 0;           // CA certificate bundle size
       } Config;
 
       ~MQTT() { end(); }
