@@ -114,12 +114,8 @@ namespace Mycila {
       void onConnect(ConnectedCallback callback) { _onConnect = callback; }
 
       bool publish(const char* topic, const char* payload, bool retain = false);
-      inline bool publish(const String& topic, const String& payload, bool retain = false) {
-        return publish(topic.c_str(), payload.c_str(), retain);
-      }
-      inline bool publish(const char* topic, const String& payload, bool retain = false) {
-        return publish(topic, payload.c_str(), retain);
-      }
+      bool publish(const String& topic, const String& payload, bool retain = false) { return publish(topic.c_str(), payload.c_str(), retain); }
+      bool publish(const char* topic, const String& payload, bool retain = false) { return publish(topic, payload.c_str(), retain); }
 
       bool isEnabled() { return _state != State::MQTT_DISABLED; }
       bool isConnected() { return _state == State::MQTT_CONNECTED; }
