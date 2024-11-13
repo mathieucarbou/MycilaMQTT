@@ -40,43 +40,6 @@ jobs:
             --filter=-whitespace/line_length,-whitespace/braces,-whitespace/comments,-runtime/indentation_namespace,-whitespace/indent,-readability/braces,-whitespace/newline,-readability/todo,-build/c++11 \
             src
 
-  arduino:
-    name: Arduino
-    # needs: cpplint
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - core: esp32:esp32
-            board: esp32:esp32:esp32
-            index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
-          - core: esp32:esp32
-            board: esp32:esp32:esp32
-            index_url: https://espressif.github.io/arduino-esp32/package_esp32_dev_index.json
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install arduino-cli
-        run: curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=/usr/local/bin sh
-
-      - name: Update core index
-        run: arduino-cli core update-index --additional-urls "${{ matrix.index_url }}"
-
-      - name: Install core
-        run: arduino-cli core install --additional-urls "${{ matrix.index_url }}" ${{ matrix.core }}
-
-      - name: Install AsyncTCP-esphome
-        run: ARDUINO_LIBRARY_ENABLE_UNSAFE_INSTALL=true arduino-cli lib install --git-url https://github.com/mathieucarbou/esphome-AsyncTCP#v2.1.1
-
-      - name: Build mqtt
-        run: arduino-cli compile --library . --warnings all -b ${{ matrix.board }} "examples/mqtt/mqtt.ino"
-
-      - name: Build server_cert
-        run: arduino-cli compile --library . --warnings all -b ${{ matrix.board }} "examples/server_cert/server_cert.ino"
-
   pio_envs:
     name: Get PlatformIO Envs
     runs-on: ubuntu-latest
