@@ -4,7 +4,6 @@
  */
 #include <MycilaMQTT.h>
 
-#include <Arduino.h>
 #include <esp_crt_bundle.h>
 
 #include <algorithm>
