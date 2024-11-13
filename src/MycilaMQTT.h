@@ -6,9 +6,10 @@
 
 #include <mqtt_client.h>
 
-#include <WString.h>
 #include <esp32-hal-log.h>
+
 #include <functional>
+#include <string>
 #include <vector>
 
 #define MYCILA_MQTT_VERSION          "4.2.3"
@@ -71,26 +72,26 @@ namespace Mycila {
         MQTT_DISCONNECTED,
       };
 
-      typedef std::function<void(const String& topic, const String& payload)> MessageCallback;
+      typedef std::function<void(const std::string& topic, const std::string& payload)> MessageCallback;
       typedef std::function<void()> ConnectedCallback;
 
       typedef struct
       {
-          String topic;
+          std::string topic;
           MessageCallback callback;
       } MQTTMessageListener;
 
       typedef struct {
-          String server = emptyString;
+          std::string server;
           uint16_t port = 1883;
           bool secured = false;
           uint16_t keepAlive = MYCILA_MQTT_KEEPALIVE;
-          String username = emptyString;
-          String password = emptyString;
-          String clientId = emptyString;
-          String willTopic = emptyString;
+          std::string username;
+          std::string password;
+          std::string clientId;
+          std::string willTopic;
 
-          String serverCert = emptyString;     // Server certificate (PEM format, loaded from File)
+          std::string serverCert;              // Server certificate (PEM format, loaded from File)
           const char* serverCertPtr = nullptr; // Server certificate pointer (PEM format)
 
           const uint8_t* certBundle = nullptr; // CA certificate bundle pointer
@@ -106,16 +107,10 @@ namespace Mycila {
       bool isAsync() { return _async; }
 
       void subscribe(const char* topic, MessageCallback callback);
-      void subscribe(const String& topic, MessageCallback callback) { subscribe(topic.c_str(), callback); }
-
       void unsubscribe(const char* topic);
-      void unsubscribe(const String& topic) { unsubscribe(topic.c_str()); }
+      bool publish(const char* topic, const char* payload, bool retain = false);
 
       void onConnect(ConnectedCallback callback) { _onConnect = callback; }
-
-      bool publish(const char* topic, const char* payload, bool retain = false);
-      bool publish(const String& topic, const String& payload, bool retain = false) { return publish(topic.c_str(), payload.c_str(), retain); }
-      bool publish(const char* topic, const String& payload, bool retain = false) { return publish(topic, payload.c_str(), retain); }
 
       bool isEnabled() { return _state != State::MQTT_DISABLED; }
       bool isConnected() { return _state == State::MQTT_CONNECTED; }

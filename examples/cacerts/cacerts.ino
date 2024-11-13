@@ -2,12 +2,14 @@
 #include <MycilaMQTT.h>
 #include <WiFi.h>
 
+#include <string>
+
 extern const uint8_t ca_certs_bundle_start[] asm("_binary__pio_data_cacerts_bin_start");
 extern const uint8_t ca_certs_bundle_end[] asm("_binary__pio_data_cacerts_bin_end");
 
 Mycila::MQTT mqtt;
 
-String baseTopic = "CC74C9F97C8D";
+std::string baseTopic = "CC74C9F97C8D";
 
 void setup() {
   Serial.begin(115200);
@@ -26,7 +28,7 @@ void setup() {
     ESP_LOGI("APP", "MQTT connected");
   });
 
-  mqtt.subscribe(baseTopic + "/value/set", [](const String& topic, const String& payload) {
+  mqtt.subscribe((baseTopic + "/value/set").c_str(), [](const std::string& topic, const std::string& payload) {
     ESP_LOGI("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
   });
 
@@ -44,6 +46,6 @@ void setup() {
 }
 
 void loop() {
-  mqtt.publish(baseTopic + "/value", String(millis()));
+  mqtt.publish((baseTopic + "/value").c_str(), std::to_string(millis()).c_str());
   delay(500);
 }

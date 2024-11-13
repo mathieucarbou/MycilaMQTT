@@ -38,7 +38,7 @@ A simple and efficient MQTT/MQTTS client for Arduino / ESP32 based on Espressif 
     Serial.println("MQTT connected");
   });
 
-  mqtt.subscribe("my-app/value/set", [](const String& topic, const String& payload) {
+  mqtt.subscribe("my-app/value/set", [](const std::string& topic, const std::string& payload) {
     Serial.printf("MQTT message received: %s -> %s\r\n", topic.c_str(), payload.c_str());
   });
 

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <string>
 
 #ifdef MYCILA_LOGGER_SUPPORT
   #include <MycilaLogger.h>
@@ -33,14 +34,14 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
   // copy config
   _config = config;
 
-  if (_config.server.isEmpty() || _config.port <= 0) {
+  if (_config.server.empty() || _config.port <= 0) {
     LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
     return;
   }
 
   LOGI(TAG, "Enable MQTT...");
 
-  const bool auth = !_config.username.isEmpty() && !_config.password.isEmpty();
+  const bool auth = !_config.username.empty() && !_config.password.empty();
 
 #if ESP_IDF_VERSION_MAJOR == 5
   if (_config.certBundle) {
@@ -58,7 +59,7 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
       .verification = {
         .use_global_ca_store = false,
         .crt_bundle_attach = _config.secured && _config.certBundle ? esp_crt_bundle_attach : nullptr,
-        .certificate = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : (_config.secured && _config.serverCertPtr ? _config.serverCertPtr : nullptr),
+        .certificate = !_config.secured ? nullptr : (!_config.serverCert.empty() ? _config.serverCert.c_str() : _config.serverCertPtr),
         .certificate_len = 0,
         .psk_hint_key = nullptr,
         .skip_cert_common_name_check = true,
@@ -142,7 +143,7 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
     .task_prio = MYCILA_MQTT_TASK_PRIORITY,
     .task_stack = MYCILA_MQTT_STACK_SIZE,
     .buffer_size = MYCILA_MQTT_BUFFER_SIZE,
-    .cert_pem = _config.secured && !_config.serverCert.isEmpty() ? _config.serverCert.c_str() : (_config.secured && _config.serverCertPtr ? _config.serverCertPtr : nullptr),
+    .cert_pem = !_config.secured ? nullptr : (!_config.serverCert.empty() ? _config.serverCert.c_str() : _config.serverCertPtr),
     .cert_len = 0,
     .client_cert_pem = nullptr,
     .client_cert_len = 0,
@@ -214,7 +215,7 @@ void Mycila::MQTT::unsubscribe(const char* topic) {
   LOGD(TAG, "Unsubscribing from: %s...", topic);
   esp_mqtt_client_unsubscribe(_mqttClient, topic);
   remove_if(_listeners.begin(), _listeners.end(), [topic](const MQTTMessageListener& listener) {
-    return listener.topic.equals(topic);
+    return listener.topic == topic;
   });
 }
 
@@ -271,14 +272,8 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     case MQTT_EVENT_UNSUBSCRIBED:
       break;
     case MQTT_EVENT_DATA: {
-      // copy topic
-      String topic;
-      topic.reserve(event->topic_len + 1);
-      topic.concat((const char*)event->topic, event->topic_len);
-      // copy data
-      String data;
-      data.reserve(event->data_len + 1);
-      data.concat((const char*)event->data, event->data_len);
+      std::string topic(event->topic, event->topic_len);
+      std::string data(event->data, event->data_len);
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DATA: %s %s", topic.c_str(), data.c_str());
 #endif
