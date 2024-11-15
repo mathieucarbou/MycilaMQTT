@@ -52,8 +52,8 @@ void setup() {
     ESP_LOGI("APP", "MQTT connected");
   });
 
-  mqtt.subscribe((baseTopic + "/value/set").c_str(), [](const std::string& topic, const std::string& payload) {
-    ESP_LOGI("APP", "MQTT message received: %s -> %s", topic.c_str(), payload.c_str());
+  mqtt.subscribe((baseTopic + "/value/set").c_str(), [](const std::string& topic, const std::string_view& payload) {
+    ESP_LOGI("APP", "MQTT message received: %s -> len=%d", topic.c_str(), payload.length());
   });
 
   Mycila::MQTT::Config config;

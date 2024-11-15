@@ -193,13 +193,13 @@ void Mycila::MQTT::end() {
   _mqttClient = nullptr;
 }
 
-bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) {
+bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, bool retain) {
   if (!isConnected())
     return false;
   if (_async)
-    return esp_mqtt_client_enqueue(_mqttClient, topic, payload, 0, 0, retain, true) >= 0;
+    return esp_mqtt_client_enqueue(_mqttClient, topic, payload.begin(), payload.length(), 0, retain, true) >= 0;
   else
-    return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) >= 0;
+    return esp_mqtt_client_publish(_mqttClient, topic, payload.begin(), payload.length(), 0, retain) >= 0;
 }
 
 void Mycila::MQTT::subscribe(const char* topic, MQTT::MessageCallback callback) {
@@ -272,9 +272,9 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       break;
     case MQTT_EVENT_DATA: {
       std::string topic(event->topic, event->topic_len);
-      std::string data(event->data, event->data_len);
+      std::string_view data(event->data, event->data_len);
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_DATA: %s %s", topic.c_str(), data.c_str());
+      LOGD(TAG, "MQTT_EVENT_DATA: %s len=%s", topic.c_str(), data.length());
 #endif
       for (auto& listener : mqtt->_listeners)
         if (_topicMatches(listener.topic.c_str(), topic.c_str()))

@@ -72,7 +72,7 @@ namespace Mycila {
         MQTT_DISCONNECTED,
       };
 
-      typedef std::function<void(const std::string& topic, const std::string& payload)> MessageCallback;
+      typedef std::function<void(const std::string& topic, const std::string_view& payload)> MessageCallback;
       typedef std::function<void()> ConnectedCallback;
 
       typedef struct
@@ -108,7 +108,7 @@ namespace Mycila {
 
       void subscribe(const char* topic, MessageCallback callback);
       void unsubscribe(const char* topic);
-      bool publish(const char* topic, const char* payload, bool retain = false);
+      bool publish(const char* topic, const std::string_view& payload, bool retain = false);
 
       void onConnect(ConnectedCallback callback) { _onConnect = callback; }
 
