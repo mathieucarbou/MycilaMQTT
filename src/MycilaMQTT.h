@@ -107,8 +107,13 @@ namespace Mycila {
       bool isAsync() { return _async; }
 
       void subscribe(const char* topic, MessageCallback callback);
+      void subscribe(const std::string& topic, MessageCallback callback) { subscribe(topic.c_str(), callback); }
+
       void unsubscribe(const char* topic);
+      void unsubscribe(const std::string& topic) { unsubscribe(topic.c_str()); }
+
       bool publish(const char* topic, const std::string_view& payload, bool retain = false);
+      bool publish(const std::string& topic, const std::string_view& payload, bool retain = false) { return publish(topic.c_str(), payload, retain); }
 
       void onConnect(ConnectedCallback callback) { _onConnect = callback; }
 
