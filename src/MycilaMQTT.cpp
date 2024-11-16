@@ -194,6 +194,15 @@ void Mycila::MQTT::end() {
   _mqttClient = nullptr;
 }
 
+bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) {
+  if (!isConnected())
+    return false;
+  if (_async)
+    return esp_mqtt_client_enqueue(_mqttClient, topic, payload, 0, 0, retain, true) >= 0;
+  else
+    return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) >= 0;
+}
+
 bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, bool retain) {
   if (!isConnected())
     return false;

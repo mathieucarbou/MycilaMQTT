@@ -110,6 +110,7 @@ namespace Mycila {
       void unsubscribe(const char* topic);
       void unsubscribe(const std::string& topic) { unsubscribe(topic.c_str()); }
 
+      bool publish(const char* topic, const char* payload, bool retain = false);
       bool publish(const char* topic, const std::string_view& payload, bool retain = false);
       bool publish(const std::string& topic, const std::string_view& payload, bool retain = false) { return publish(topic.c_str(), payload, retain); }
 
