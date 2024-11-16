@@ -6,8 +6,6 @@
 
 #include <mqtt_client.h>
 
-#include <esp32-hal-log.h>
-
 #include <functional>
 #include <string>
 #include <vector>

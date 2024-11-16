@@ -4,6 +4,7 @@
  */
 #include <MycilaMQTT.h>
 
+#include <esp32-hal-log.h>
 #include <esp_crt_bundle.h>
 
 #include <algorithm>
