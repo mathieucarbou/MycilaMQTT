@@ -112,7 +112,9 @@ namespace Mycila {
 
       bool publish(const char* topic, const char* payload, bool retain = false);
       bool publish(const char* topic, const std::string_view& payload, bool retain = false);
-      bool publish(const std::string& topic, const std::string_view& payload, bool retain = false) { return publish(topic.c_str(), payload, retain); }
+
+      bool publish(const std::string& topic, const char* payload, bool retain = false) { return publish(topic.c_str(), payload, retain); }
+      bool publish(const std::string& topic, const std::string_view& payload, bool retain) { return publish(topic.c_str(), payload, retain); }
 
       void onConnect(ConnectedCallback callback) { _onConnect = callback; }
 
