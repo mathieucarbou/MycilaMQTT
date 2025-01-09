@@ -1,6 +1,6 @@
 {
   "name": "MycilaMQTT",
-  "version": "6.0.4",
+  "version": "6.0.5",
   "description": "A simple and efficient MQTT/MQTTS client for Arduino / ESP32 based on Espressif API",
   "homepage": "https://github.com/mathieucarbou/MycilaMQTT",
   "repository": {
