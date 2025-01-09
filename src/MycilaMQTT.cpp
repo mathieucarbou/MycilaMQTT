@@ -284,7 +284,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       std::string topic(event->topic, event->topic_len);
       std::string_view data(event->data, event->data_len);
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_DATA: %s len=%s", topic.c_str(), data.length());
+      LOGD(TAG, "MQTT_EVENT_DATA: %s len=%" PRIu32, topic.c_str(), static_cast<uint32_t>(data.length()));
 #endif
       for (auto& listener : mqtt->_listeners)
         if (_topicMatches(listener.topic.c_str(), topic.c_str()))
