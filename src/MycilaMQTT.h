@@ -8,7 +8,7 @@
 
 #include <functional>
 #include <string>
-#include <vector>
+#include <list>
 
 #define MYCILA_MQTT_VERSION          "6.0.5"
 #define MYCILA_MQTT_VERSION_MAJOR    6
@@ -128,7 +128,7 @@ namespace Mycila {
       esp_mqtt_client_handle_t _mqttClient = nullptr;
       State _state = State::MQTT_DISABLED;
       ConnectedCallback _onConnect = nullptr;
-      std::vector<MQTTMessageListener> _listeners;
+      std::list<MQTTMessageListener> _listeners;
       Config _config;
       const char* _lastError = nullptr;
       bool _async = false;

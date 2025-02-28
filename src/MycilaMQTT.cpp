@@ -223,7 +223,7 @@ void Mycila::MQTT::subscribe(const char* topic, MQTT::MessageCallback callback) 
 void Mycila::MQTT::unsubscribe(const char* topic) {
   LOGD(TAG, "Unsubscribing from: %s...", topic);
   esp_mqtt_client_unsubscribe(_mqttClient, topic);
-  remove_if(_listeners.begin(), _listeners.end(), [topic](const MQTTMessageListener& listener) {
+  _listeners.remove_if([topic](const MQTTMessageListener& listener) {
     return listener.topic == topic;
   });
 }
