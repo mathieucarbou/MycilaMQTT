@@ -7,8 +7,8 @@
 #include <mqtt_client.h>
 
 #include <functional>
-#include <string>
 #include <list>
+#include <string>
 
 #define MYCILA_MQTT_VERSION          "6.0.6"
 #define MYCILA_MQTT_VERSION_MAJOR    6
@@ -98,6 +98,8 @@ namespace Mycila {
 
       ~MQTT() { end(); }
 
+      void setConfigHook(std::function<void(esp_mqtt_client_config_t& cfg)> hook) { _configHook = hook; }
+
       void begin(const Config& config);
       void end();
 
@@ -124,6 +126,8 @@ namespace Mycila {
       bool isConnected() { return _state == State::MQTT_CONNECTED; }
       const char* getLastError() { return _lastError; }
 
+      static const esp_mqtt_client_config_t to_esp_mqtt_client_config(const Config& config);
+
     private:
       esp_mqtt_client_handle_t _mqttClient = nullptr;
       State _state = State::MQTT_DISABLED;
@@ -132,6 +136,7 @@ namespace Mycila {
       Config _config;
       const char* _lastError = nullptr;
       bool _async = false;
+      std::function<void(esp_mqtt_client_config_t& cfg)> _configHook = nullptr;
 
     private:
       static void _mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data);

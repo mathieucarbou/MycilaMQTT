@@ -47,81 +47,72 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
   if (_config.certBundle) {
     esp_crt_bundle_set(_config.certBundle, _config.certBundleSize);
   }
-  const esp_mqtt_client_config_t cfg = {
-    .broker = {
-      .address = {
-        .uri = nullptr,
-        .hostname = _config.server.c_str(),
-        .transport = _config.secured ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP,
-        .path = nullptr,
-        .port = _config.port,
-      },
-      .verification = {
-        .use_global_ca_store = false,
-        .crt_bundle_attach = _config.secured && _config.certBundle ? esp_crt_bundle_attach : nullptr,
-        .certificate = !_config.secured ? nullptr : (!_config.serverCert.empty() ? _config.serverCert.c_str() : _config.serverCertPtr),
-        .certificate_len = 0,
-        .psk_hint_key = nullptr,
-        .skip_cert_common_name_check = true,
-        .alpn_protos = nullptr,
-        .common_name = nullptr,
-      },
-    },
-    .credentials = {
-      .username = auth ? _config.username.c_str() : nullptr,
-      .client_id = _config.clientId.c_str(),
-      .set_null_client_id = false,
-      .authentication = {
-        .password = auth ? _config.password.c_str() : nullptr,
-        .certificate = nullptr,
-        .certificate_len = 0,
-        .key = nullptr,
-        .key_len = 0,
-        .key_password = nullptr,
-        .key_password_len = 0,
-        .use_secure_element = false,
-        .ds_data = nullptr,
-      },
-    },
-    .session = {
-      .last_will = {
-        .topic = _config.willTopic.c_str(),
-        .msg = "offline",
-        .msg_len = 7,
-        .qos = 0,
-        .retain = true,
-      },
-      .disable_clean_session = !MYCILA_MQTT_CLEAN_SESSION,
-      .keepalive = _config.keepAlive,
-      .disable_keepalive = false,
-      .protocol_ver = esp_mqtt_protocol_ver_t::MQTT_PROTOCOL_UNDEFINED,
-      .message_retransmit_timeout = MYCILA_MQTT_RETRANSMIT_TIMEOUT * 1000,
-    },
-    .network = {
-      .reconnect_timeout_ms = MYCILA_MQTT_RECONNECT_INTERVAL * 1000,
-      .timeout_ms = MYCILA_MQTT_NETWORK_TIMEOUT * 1000,
-      .refresh_connection_after_ms = 0,
-      .disable_auto_reconnect = false,
-      .transport = nullptr,
-      .if_name = nullptr,
-    },
-    .task = {
-      .priority = MYCILA_MQTT_TASK_PRIORITY,
-      .stack_size = MYCILA_MQTT_STACK_SIZE,
-    },
-    .buffer = {
-      .size = MYCILA_MQTT_BUFFER_SIZE,
-      .out_size = MYCILA_MQTT_BUFFER_SIZE,
-    },
-    .outbox = {
-      .limit = MYCILA_MQTT_OUTBOX_SIZE,
-    },
-  };
+  esp_mqtt_client_config_t cfg;
+
+  cfg.broker.address.uri = nullptr;
+  cfg.broker.address.hostname = _config.server.c_str();
+  cfg.broker.address.transport = _config.secured ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP;
+  cfg.broker.address.path = nullptr;
+  cfg.broker.address.port = _config.port;
+
+  cfg.broker.verification.use_global_ca_store = false;
+  cfg.broker.verification.crt_bundle_attach = _config.secured && _config.certBundle ? esp_crt_bundle_attach : nullptr;
+  cfg.broker.verification.certificate = !_config.secured ? nullptr : (!_config.serverCert.empty() ? _config.serverCert.c_str() : _config.serverCertPtr),
+  cfg.broker.verification.certificate_len = 0;
+  cfg.broker.verification.psk_hint_key = nullptr;
+  cfg.broker.verification.skip_cert_common_name_check = true;
+  cfg.broker.verification.alpn_protos = nullptr;
+  cfg.broker.verification.common_name = nullptr;
+
+  cfg.credentials.username = auth ? _config.username.c_str() : nullptr;
+  cfg.credentials.client_id = _config.clientId.c_str();
+  cfg.credentials.set_null_client_id = false;
+  cfg.credentials.authentication.password = auth ? _config.password.c_str() : nullptr;
+  cfg.credentials.authentication.certificate = nullptr;
+  cfg.credentials.authentication.certificate_len = 0;
+  cfg.credentials.authentication.key = nullptr;
+  cfg.credentials.authentication.key_len = 0;
+  cfg.credentials.authentication.key_password = nullptr;
+  cfg.credentials.authentication.key_password_len = 0;
+  cfg.credentials.authentication.use_secure_element = false;
+  cfg.credentials.authentication.ds_data = nullptr;
+  cfg.credentials.authentication.use_ecdsa_peripheral = false;
+  cfg.credentials.authentication.ecdsa_key_efuse_blk = 0;
+
+  cfg.session.last_will.topic = _config.willTopic.c_str();
+  cfg.session.last_will.msg = "offline";
+  cfg.session.last_will.msg_len = 7;
+  cfg.session.last_will.qos = 0;
+  cfg.session.last_will.retain = true;
+  cfg.session.disable_clean_session = !MYCILA_MQTT_CLEAN_SESSION;
+  cfg.session.keepalive = _config.keepAlive;
+  cfg.session.disable_keepalive = false;
+  cfg.session.protocol_ver = esp_mqtt_protocol_ver_t::MQTT_PROTOCOL_UNDEFINED;
+  cfg.session.message_retransmit_timeout = MYCILA_MQTT_RETRANSMIT_TIMEOUT * 1000;
+
+  cfg.network.reconnect_timeout_ms = MYCILA_MQTT_RECONNECT_INTERVAL * 1000;
+  cfg.network.timeout_ms = MYCILA_MQTT_NETWORK_TIMEOUT * 1000;
+  cfg.network.refresh_connection_after_ms = 0;
+  cfg.network.disable_auto_reconnect = false;
+  cfg.network.tcp_keep_alive_cfg.keep_alive_enable = true;
+  cfg.network.tcp_keep_alive_cfg.keep_alive_idle = 60;
+  cfg.network.tcp_keep_alive_cfg.keep_alive_interval = 20;
+  cfg.network.tcp_keep_alive_cfg.keep_alive_count = 3;
+  cfg.network.transport = nullptr;
+  cfg.network.if_name = nullptr;
+
+  cfg.task.priority = MYCILA_MQTT_TASK_PRIORITY;
+  cfg.task.stack_size = MYCILA_MQTT_STACK_SIZE;
+
+  cfg.buffer.size = MYCILA_MQTT_BUFFER_SIZE;
+  cfg.buffer.out_size = MYCILA_MQTT_BUFFER_SIZE;
+
+  cfg.outbox.limit = MYCILA_MQTT_OUTBOX_SIZE;
 #else
   if (_config.certBundle) {
     arduino_esp_crt_bundle_set(_config.certBundle);
   }
-  const esp_mqtt_client_config_t cfg = {
+  esp_mqtt_client_config_t cfg = {
     .event_handle = nullptr,
     .event_loop_handle = nullptr,
     .host = _config.server.c_str(),
@@ -169,6 +160,9 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
     .message_retransmit_timeout = MYCILA_MQTT_RETRANSMIT_TIMEOUT * 1000,
   };
 #endif
+
+  if (_configHook)
+    _configHook(cfg);
 
   _lastError = nullptr;
   _mqttClient = esp_mqtt_client_init(&cfg);
