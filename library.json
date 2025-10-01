@@ -19,10 +19,9 @@
   "headers": "MycilaMQTT.h",
   "export": {
     "include": [
-      "data",
-      "pio",
       "examples",
       "src",
+      "tools",
       "library.json",
       "library.properties",
       "LICENSE",
