@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <utility>
 
 #ifdef MYCILA_LOGGER_SUPPORT
   #include <MycilaLogger.h>
@@ -27,12 +28,11 @@ extern Mycila::Logger logger;
 
 #define TAG "MQTT"
 
-void Mycila::MQTT::begin(const MQTT::Config& config) {
+void Mycila::MQTT::begin(MQTT::Config config) {
   if (_state != MQTT::State::MQTT_DISABLED)
     return;
 
-  // copy config
-  _config = config;
+  _config = std::move(config);
 
   if (_config.server.empty() || _config.port <= 0) {
     LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
@@ -43,7 +43,6 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
 
   const bool auth = !_config.username.empty() && !_config.password.empty();
 
-#if ESP_IDF_VERSION_MAJOR == 5
   if (_config.certBundle) {
     esp_crt_bundle_set(_config.certBundle, _config.certBundleSize);
   }
@@ -108,58 +107,6 @@ void Mycila::MQTT::begin(const MQTT::Config& config) {
   cfg.buffer.out_size = MYCILA_MQTT_BUFFER_SIZE;
 
   cfg.outbox.limit = MYCILA_MQTT_OUTBOX_SIZE;
-#else
-  if (_config.certBundle) {
-    arduino_esp_crt_bundle_set(_config.certBundle);
-  }
-  esp_mqtt_client_config_t cfg = {
-    .event_handle = nullptr,
-    .event_loop_handle = nullptr,
-    .host = _config.server.c_str(),
-    .uri = nullptr,
-    .port = _config.port,
-    .set_null_client_id = false,
-    .client_id = _config.clientId.c_str(),
-    .username = auth ? _config.username.c_str() : nullptr,
-    .password = auth ? _config.password.c_str() : nullptr,
-    .lwt_topic = _config.willTopic.c_str(),
-    .lwt_msg = "offline",
-    .lwt_qos = 0,
-    .lwt_retain = true,
-    .lwt_msg_len = 7,
-    .disable_clean_session = !MYCILA_MQTT_CLEAN_SESSION,
-    .keepalive = _config.keepAlive,
-    .disable_auto_reconnect = false,
-    .user_context = nullptr,
-    .task_prio = MYCILA_MQTT_TASK_PRIORITY,
-    .task_stack = MYCILA_MQTT_STACK_SIZE,
-    .buffer_size = MYCILA_MQTT_BUFFER_SIZE,
-    .cert_pem = !_config.secured ? nullptr : (!_config.serverCert.empty() ? _config.serverCert.c_str() : _config.serverCertPtr),
-    .cert_len = 0,
-    .client_cert_pem = nullptr,
-    .client_cert_len = 0,
-    .client_key_pem = nullptr,
-    .client_key_len = 0,
-    .transport = _config.secured ? MQTT_TRANSPORT_OVER_SSL : MQTT_TRANSPORT_OVER_TCP,
-    .refresh_connection_after_ms = 0,
-    .psk_hint_key = nullptr,
-    .use_global_ca_store = false,
-    .crt_bundle_attach = _config.secured && _config.certBundle ? arduino_esp_crt_bundle_attach : nullptr,
-    .reconnect_timeout_ms = MYCILA_MQTT_RECONNECT_INTERVAL * 1000,
-    .alpn_protos = nullptr,
-    .clientkey_password = nullptr,
-    .clientkey_password_len = 0,
-    .protocol_ver = esp_mqtt_protocol_ver_t::MQTT_PROTOCOL_UNDEFINED,
-    .out_buffer_size = MYCILA_MQTT_BUFFER_SIZE,
-    .skip_cert_common_name_check = true,
-    .use_secure_element = false,
-    .ds_data = nullptr,
-    .network_timeout_ms = MYCILA_MQTT_NETWORK_TIMEOUT * 1000,
-    .disable_keepalive = false,
-    .path = nullptr,
-    .message_retransmit_timeout = MYCILA_MQTT_RETRANSMIT_TIMEOUT * 1000,
-  };
-#endif
 
   if (_configHook)
     _configHook(cfg);
@@ -188,15 +135,6 @@ void Mycila::MQTT::end() {
   _mqttClient = nullptr;
 }
 
-bool Mycila::MQTT::publish(const char* topic, const char* payload, bool retain) {
-  if (!isConnected())
-    return false;
-  if (_async)
-    return esp_mqtt_client_enqueue(_mqttClient, topic, payload, 0, 0, retain, true) >= 0;
-  else
-    return esp_mqtt_client_publish(_mqttClient, topic, payload, 0, 0, retain) >= 0;
-}
-
 bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, bool retain) {
   if (!isConnected())
     return false;
@@ -206,11 +144,14 @@ bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, b
     return esp_mqtt_client_publish(_mqttClient, topic, payload.begin(), payload.length(), 0, retain) >= 0;
 }
 
-void Mycila::MQTT::subscribe(const char* topic, MQTT::MessageCallback callback) {
-  _listeners.push_back({topic, callback});
+void Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) {
   if (isConnected()) {
-    LOGD(TAG, "Subscribing to: %s...", topic);
-    esp_mqtt_client_subscribe(_mqttClient, topic, 0);
+    if (esp_mqtt_client_subscribe(_mqttClient, topic.c_str(), 0) != -1) {
+      LOGD(TAG, "Subscribed to: %s", topic.c_str());
+      _listeners.push_back({std::move(topic), callback});
+    } else {
+      LOGE(TAG, "Failed to subscribe to: %s", topic.c_str());
+    }
   }
 }
 

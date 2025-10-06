@@ -100,25 +100,16 @@ namespace Mycila {
 
       void setConfigHook(std::function<void(esp_mqtt_client_config_t& cfg)> hook) { _configHook = hook; }
 
-      void begin(const Config& config);
+      void begin(Config config);
       void end();
 
       void setAsync(bool async) { _async = async; }
       bool isAsync() { return _async; }
 
-      void subscribe(const char* topic, MessageCallback callback);
-      void subscribe(const std::string& topic, MessageCallback callback) { subscribe(topic.c_str(), callback); }
-
+      void subscribe(std::string topic, MessageCallback callback);
       void unsubscribe(const char* topic);
-      void unsubscribe(const std::string& topic) { unsubscribe(topic.c_str()); }
 
-      bool publish(const char* topic, const char* payload, bool retain = false);
       bool publish(const char* topic, const std::string_view& payload, bool retain = false);
-      bool publish(const char* topic, const std::string& payload, bool retain = false) { return publish(topic, payload.c_str(), retain); }
-
-      bool publish(const std::string& topic, const char* payload, bool retain = false) { return publish(topic.c_str(), payload, retain); }
-      bool publish(const std::string& topic, const std::string_view& payload, bool retain = false) { return publish(topic.c_str(), payload, retain); }
-      bool publish(const std::string& topic, const std::string& payload, bool retain = false) { return publish(topic.c_str(), payload.c_str(), retain); }
 
       void onConnect(ConnectedCallback callback) { _onConnect = callback; }
 
