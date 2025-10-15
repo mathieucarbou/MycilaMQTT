@@ -145,13 +145,16 @@ bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, b
 }
 
 void Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) {
+  _listeners.push_back({std::move(topic), std::move(callback)});
   if (isConnected()) {
-    if (esp_mqtt_client_subscribe(_mqttClient, topic.c_str(), 0) != -1) {
-      LOGD(TAG, "Subscribed to: %s", topic.c_str());
-      _listeners.push_back({std::move(topic), callback});
+    const char* t = _listeners.back().topic.c_str();
+    if (esp_mqtt_client_subscribe(_mqttClient, t, 0) != -1) {
+      LOGD(TAG, "Subscribed to: %s", t);
     } else {
-      LOGE(TAG, "Failed to subscribe to: %s", topic.c_str());
+      LOGE(TAG, "Failed to subscribe to: %s", t);
     }
+  } else {
+    LOGD(TAG, "Will subscribe (when connected) to: %s", _listeners.back().topic.c_str());
   }
 }
 
