@@ -60,7 +60,3 @@ MycilaMQTT supports 2 kind of SSL config:
   A cert bundle contains all major CA authorities so any official mqtt server with a domain name and valid certificate that is trusted by an authority will work with the cert bundle.
 
 A python script in `tools` folder allows to download and prepare the cert bundle.
-
-# Alternatives
-
-[PsychicMqttClient](https://github.com/theelims/PsychicMqttClient) is also an MQTT library based on ESP-IDF written by [@theelims](https://github.com/theelims) that you might want to consider, which is more feature rich and has better support for CA bundles.
