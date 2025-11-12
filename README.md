@@ -47,7 +47,7 @@ Add the following to your `platformio.ini`:
 
 ```ini
 lib_deps =
-    mathieucarbou/MycilaMQTT@^6.1.2
+    mathieucarbou/MycilaMQTT@^6.1.3
 ```
 
 ### Arduino IDE
