@@ -9,6 +9,7 @@
 #include <functional>
 #include <list>
 #include <string>
+#include <utility>
 
 #define MYCILA_MQTT_VERSION          "6.1.2"
 #define MYCILA_MQTT_VERSION_MAJOR    6
@@ -111,7 +112,7 @@ namespace Mycila {
 
       bool publish(const char* topic, const std::string_view& payload, bool retain = false);
 
-      void onConnect(ConnectedCallback callback) { _onConnect = callback; }
+      void onConnect(ConnectedCallback callback) { _onConnect = std::move(callback); }
 
       bool isEnabled() { return _state != State::MQTT_DISABLED; }
       bool isConnected() { return _state == State::MQTT_CONNECTED; }
