@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: MIT
+/*
+ * Copyright (C) Mathieu Carbou
+ */
 #include <Arduino.h>
 #include <MycilaMQTT.h>
 #include <WiFi.h>
