@@ -8,7 +8,6 @@
 
 [![Build](https://github.com/mathieucarbou/MycilaMQTT/actions/workflows/ci.yml/badge.svg)](https://github.com/mathieucarbou/MycilaMQTT/actions/workflows/ci.yml)
 [![GitHub latest commit](https://badgen.net/github/last-commit/mathieucarbou/MycilaMQTT)](https://GitHub.com/mathieucarbou/MycilaMQTT/commit/)
-[![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/mathieucarbou/MycilaMQTT)
 
 A simple, efficient and modern MQTT/MQTTS client library for ESP32 Arduino projects, built on top of the Espressif ESP-IDF MQTT API.
 
