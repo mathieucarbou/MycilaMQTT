@@ -120,8 +120,8 @@ void Mycila::MQTT::begin(MQTT::Config config) {
     return;
   }
   ESP_ERROR_CHECK(esp_mqtt_client_register_event(_mqttClient, MQTT_EVENT_ANY, _mqttEventHandler, this));
-  ESP_ERROR_CHECK(esp_mqtt_client_start(_mqttClient));
   _state = MQTT::State::MQTT_CONNECTING;
+  ESP_ERROR_CHECK(esp_mqtt_client_start(_mqttClient));
 }
 
 void Mycila::MQTT::end() {
@@ -135,6 +135,9 @@ void Mycila::MQTT::end() {
   esp_mqtt_client_stop(_mqttClient);
   esp_mqtt_client_destroy(_mqttClient);
   _mqttClient = nullptr;
+
+  // The stopped worker can no longer overwrite this with a disconnect event.
+  _state = MQTT::State::MQTT_DISABLED;
 }
 
 bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, bool retain) {
@@ -146,26 +149,41 @@ bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, b
     return esp_mqtt_client_publish(_mqttClient, topic, payload.begin(), payload.length(), 0, retain) >= 0;
 }
 
-void Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) {
-  _listeners.push_back({std::move(topic), std::move(callback)});
+bool Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) {
+  if (!_listenersMutex.try_lock())
+    return false;
+
+  _listeners.push_back({topic, std::move(callback)});
+  _listenersMutex.unlock();
+
   if (isConnected()) {
-    const char* t = _listeners.back().topic.c_str();
-    if (esp_mqtt_client_subscribe(_mqttClient, t, 0) != -1) {
-      LOGD(TAG, "Subscribed to: %s", t);
+    if (esp_mqtt_client_subscribe(_mqttClient, topic.c_str(), 0) != -1) {
+      LOGD(TAG, "Subscribed to: %s", topic.c_str());
     } else {
-      LOGE(TAG, "Failed to subscribe to: %s", t);
+      LOGE(TAG, "Failed to subscribe to: %s", topic.c_str());
     }
   } else {
-    LOGD(TAG, "Will subscribe (when connected) to: %s", _listeners.back().topic.c_str());
+    LOGD(TAG, "Will subscribe (when connected) to: %s", topic.c_str());
   }
+
+  return true;
 }
 
-void Mycila::MQTT::unsubscribe(const char* topic) {
+bool Mycila::MQTT::unsubscribe(const char* topic) {
   LOGD(TAG, "Unsubscribing from: %s...", topic);
-  esp_mqtt_client_unsubscribe(_mqttClient, topic);
+
+  if (!_listenersMutex.try_lock())
+    return false;
+
   _listeners.remove_if([topic](const MQTTMessageListener& listener) {
     return listener.topic == topic;
   });
+  _listenersMutex.unlock();
+
+  if (isConnected())
+    esp_mqtt_client_unsubscribe(_mqttClient, topic);
+
+  return true;
 }
 
 void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
@@ -198,14 +216,17 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     case MQTT_EVENT_CONNECTED:
       mqtt->_state = MQTT::State::MQTT_CONNECTED;
       mqtt->publish(mqtt->_config.willTopic.c_str(), "online", true);
+      {
+        std::lock_guard<std::mutex> lock(mqtt->_listenersMutex);
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
+        LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
 #endif
-      for (auto& _listener : mqtt->_listeners) {
-        esp_mqtt_client_subscribe(mqttClient, _listener.topic.c_str(), 0);
+        for (auto& _listener : mqtt->_listeners) {
+          esp_mqtt_client_subscribe(mqttClient, _listener.topic.c_str(), 0);
 #ifdef MYCILA_MQTT_DEBUG
-        LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener.topic.c_str());
+          LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener.topic.c_str());
 #endif
+        }
       }
       if (mqtt->_onConnect)
         mqtt->_onConnect();
@@ -226,6 +247,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DATA: %s len=%" PRIu32, topic.c_str(), static_cast<uint32_t>(data.length()));
 #endif
+      std::lock_guard<std::mutex> lock(mqtt->_listenersMutex);
       for (auto& listener : mqtt->_listeners)
         if (_topicMatches(listener.topic.c_str(), topic.c_str()))
           listener.callback(topic, data);

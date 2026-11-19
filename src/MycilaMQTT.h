@@ -6,8 +6,10 @@
 
 #include <mqtt_client.h>
 
+#include <atomic>
 #include <functional>
 #include <list>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -107,8 +109,12 @@ namespace Mycila {
       void setAsync(bool async) { _async = async; }
       bool isAsync() { return _async; }
 
-      void subscribe(std::string topic, MessageCallback callback);
-      void unsubscribe(const char* topic);
+      // Return false if the listener lock is unavailable; true means the local change was accepted.
+      bool subscribe(std::string topic, MessageCallback callback);
+      bool unsubscribe(const char* topic);
+
+      // Borrowed view; the caller must serialize subscription changes while inspecting it.
+      const std::list<MQTTMessageListener>& getListeners() const { return _listeners; }
 
       bool publish(const char* topic, const std::string_view& payload, bool retain = false);
 
@@ -122,9 +128,10 @@ namespace Mycila {
 
     private:
       esp_mqtt_client_handle_t _mqttClient = nullptr;
-      State _state = State::MQTT_DISABLED;
+      std::atomic<State> _state{State::MQTT_DISABLED};
       ConnectedCallback _onConnect = nullptr;
       std::list<MQTTMessageListener> _listeners;
+      std::mutex _listenersMutex;
       Config _config;
       const char* _lastError = nullptr;
       bool _async = false;
