@@ -153,17 +153,18 @@ bool Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) 
   if (!_listenersMutex.try_lock())
     return false;
 
-  _listeners.push_back({topic, std::move(callback)});
+  _listeners.push_back({std::move(topic), std::move(callback)});
+  const char* t = _listeners.back().topic.c_str();
   _listenersMutex.unlock();
 
   if (isConnected()) {
-    if (esp_mqtt_client_subscribe(_mqttClient, topic.c_str(), 0) != -1) {
-      LOGD(TAG, "Subscribed to: %s", topic.c_str());
+    if (esp_mqtt_client_subscribe(_mqttClient, t, 0) != -1) {
+      LOGD(TAG, "Subscribed to: %s", t);
     } else {
-      LOGE(TAG, "Failed to subscribe to: %s", topic.c_str());
+      LOGE(TAG, "Failed to subscribe to: %s", t);
     }
   } else {
-    LOGD(TAG, "Will subscribe (when connected) to: %s", topic.c_str());
+    LOGD(TAG, "Will subscribe (when connected) to: %s", t);
   }
 
   return true;
