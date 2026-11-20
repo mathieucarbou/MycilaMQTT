@@ -77,11 +77,23 @@ namespace Mycila {
       typedef std::function<void(const std::string& topic, const std::string_view& payload)> MessageCallback;
       typedef std::function<void()> ConnectedCallback;
 
+      /**
+       * @brief Listener entry for a topic subscription.
+       *
+       * Concurrency model (backed by `_listenersMutex`):
+       * - Structural changes to `_listeners` (addition, removal) require a `unique_lock` and are
+       *   only performed from the MQTT event task (removal) or serialized user threads (addition).
+       * - Reading the list and flipping `active` only require a `shared_lock`, because they touch
+       *   element data, not list structure. `std::list` guarantees node stability: pointers to
+       *   existing nodes remain valid while other elements are added or removed.
+       * - esp-mqtt client calls are never issued while `_listenersMutex` is held: esp-mqtt holds
+       *   its own internal lock across event dispatch, so taking ours first would deadlock.
+       */
       typedef struct
       {
           std::string topic;
           MessageCallback callback;
-          bool active = true;
+          std::atomic<bool> active{true}; // tombstone: logically unsubscribed; physically removed by the MQTT task
       } MQTTMessageListener;
 
       typedef struct {

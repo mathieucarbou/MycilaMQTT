@@ -33,6 +33,13 @@ void setup() {
     ESP_LOGI("APP", "MQTT message received: %s -> len=%d", topic.c_str(), payload.length());
   });
 
+  // Unsubscribing from within a listener callback is supported: the removal takes effect for
+  // subsequent messages; the listener entry is removed by the MQTT task at the next event.
+  mqtt.subscribe((baseTopic + "/unsubscribe").c_str(), [](const std::string& topic, const std::string_view& payload) {
+    mqtt.unsubscribe(topic.c_str());
+    ESP_LOGI("APP", "MQTT unsubscribed from: %s", topic.c_str());
+  });
+
   Mycila::MQTT::Config config;
   config.server = "test.mosquitto.org";
   config.port = 1884;
