@@ -12,6 +12,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 #define MYCILA_MQTT_VERSION          "6.1.3"
 #define MYCILA_MQTT_VERSION_MAJOR    6
@@ -113,8 +114,7 @@ namespace Mycila {
       bool subscribe(std::string topic, MessageCallback callback);
       bool unsubscribe(const char* topic);
 
-      // Borrowed view; the caller must serialize subscription changes while inspecting it.
-      const std::list<MQTTMessageListener>& getListeners() const { return _listeners; }
+      std::vector<std::string> getSubscribedTopics() const;
 
       bool publish(const char* topic, const std::string_view& payload, bool retain = false);
 
@@ -131,7 +131,7 @@ namespace Mycila {
       std::atomic<State> _state{State::MQTT_DISABLED};
       ConnectedCallback _onConnect = nullptr;
       std::list<MQTTMessageListener> _listeners;
-      std::mutex _listenersMutex;
+      mutable std::mutex _listenersMutex;
       Config _config;
       const char* _lastError = nullptr;
       bool _async = false;

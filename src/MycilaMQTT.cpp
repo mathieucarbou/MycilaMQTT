@@ -187,6 +187,16 @@ bool Mycila::MQTT::unsubscribe(const char* topic) {
   return true;
 }
 
+std::vector<std::string> Mycila::MQTT::getSubscribedTopics() const {
+  std::vector<std::string> topics;
+  std::lock_guard<std::mutex> lock(_listenersMutex);
+  topics.reserve(_listeners.size());
+  for (const auto& listener : _listeners) {
+    topics.push_back(listener.topic);
+  }
+  return topics;
+}
+
 void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
   esp_mqtt_client_handle_t mqttClient = event->client;
