@@ -12,6 +12,7 @@
 #include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 #ifdef MYCILA_LOGGER_SUPPORT
   #include <MycilaLogger.h>
@@ -197,7 +198,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 
   // lock the list and cleanup inactive listeners
   mqtt->_cleanupInactiveListeners();
-  
+
   switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_ERROR:
       switch (event->error_handle->error_type) {
