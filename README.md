@@ -245,11 +245,9 @@ bool publish(const char* topic, const std::string_view& payload, bool retain = f
 ### Subscribing
 
 ```cpp
-bool subscribe(std::string topic, MessageCallback callback)
-bool unsubscribe(const char* topic)
+void subscribe(std::string topic, MessageCallback callback)
+void unsubscribe(const char* topic)
 ```
-
-Both methods return `false` without changing subscriptions or sending an MQTT request if the listener lock cannot be acquired. `true` means the local change was accepted, including while disconnected; it does not confirm broker acknowledgment.
 
 **Wildcard Support:**
 - `+` - Single-level wildcard (e.g., `home/+/temperature`)

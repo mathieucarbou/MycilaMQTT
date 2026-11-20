@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -149,14 +150,11 @@ bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, b
     return esp_mqtt_client_publish(_mqttClient, topic, payload.begin(), payload.length(), 0, retain) >= 0;
 }
 
-bool Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) {
-  if (!_listenersMutex.try_lock())
-    return false;
-
-  _listeners.push_back({std::move(topic), std::move(callback)});
+void Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) {
+  // shared_lock because it is perfecly safe to append to a list while iterating on it
+  std::shared_lock<std::shared_mutex> lock(_listenersMutex);
+  _listeners.push_back({std::move(topic), std::move(callback), true});
   const char* t = _listeners.back().topic.c_str();
-  _listenersMutex.unlock();
-
   if (isConnected()) {
     if (esp_mqtt_client_subscribe(_mqttClient, t, 0) != -1) {
       LOGD(TAG, "Subscribed to: %s", t);
@@ -166,33 +164,28 @@ bool Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) 
   } else {
     LOGD(TAG, "Will subscribe (when connected) to: %s", t);
   }
-
-  return true;
 }
 
-bool Mycila::MQTT::unsubscribe(const char* topic) {
+void Mycila::MQTT::unsubscribe(const char* topic) {
+  // shared_lock because we do not update the list but just set a flag on existing listeners
+  std::shared_lock<std::shared_mutex> lock(_listenersMutex);
   LOGD(TAG, "Unsubscribing from: %s...", topic);
-
-  if (!_listenersMutex.try_lock())
-    return false;
-
-  _listeners.remove_if([topic](const MQTTMessageListener& listener) {
-    return listener.topic == topic;
-  });
-  _listenersMutex.unlock();
-
+  for (auto& listener : _listeners) {
+    if (listener.topic == topic) {
+      listener.active = false;
+    }
+  }
   if (isConnected())
     esp_mqtt_client_unsubscribe(_mqttClient, topic);
-
-  return true;
 }
 
 std::vector<std::string> Mycila::MQTT::getSubscribedTopics() const {
+  std::shared_lock<std::shared_mutex> lock(_listenersMutex);
   std::vector<std::string> topics;
-  std::lock_guard<std::mutex> lock(_listenersMutex);
   topics.reserve(_listeners.size());
   for (const auto& listener : _listeners) {
-    topics.push_back(listener.topic);
+    if (listener.active)
+      topics.push_back(listener.topic);
   }
   return topics;
 }
@@ -201,6 +194,10 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
   esp_mqtt_client_handle_t mqttClient = event->client;
   Mycila::MQTT* mqtt = (Mycila::MQTT*)event_handler_arg;
+
+  // lock the list and cleanup inactive listeners
+  mqtt->_cleanupInactiveListeners();
+  
   switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_ERROR:
       switch (event->error_handle->error_type) {
@@ -227,17 +224,17 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     case MQTT_EVENT_CONNECTED:
       mqtt->_state = MQTT::State::MQTT_CONNECTED;
       mqtt->publish(mqtt->_config.willTopic.c_str(), "online", true);
-      {
-        std::lock_guard<std::mutex> lock(mqtt->_listenersMutex);
 #ifdef MYCILA_MQTT_DEBUG
-        LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
+      LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
 #endif
-        for (auto& _listener : mqtt->_listeners) {
+      // we do not need to lock (or even take a shared lock) because the only operation that is mutating the list is above from the same task
+      for (auto& _listener : mqtt->_listeners) {
+        if (_listener.active) {
           esp_mqtt_client_subscribe(mqttClient, _listener.topic.c_str(), 0);
 #ifdef MYCILA_MQTT_DEBUG
           LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener.topic.c_str());
 #endif
-        }
+      }
       }
       if (mqtt->_onConnect)
         mqtt->_onConnect();
@@ -258,9 +255,8 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DATA: %s len=%" PRIu32, topic.c_str(), static_cast<uint32_t>(data.length()));
 #endif
-      std::lock_guard<std::mutex> lock(mqtt->_listenersMutex);
       for (auto& listener : mqtt->_listeners)
-        if (_topicMatches(listener.topic.c_str(), topic.c_str()))
+        if (listener.active && _topicMatches(listener.topic.c_str(), topic.c_str()))
           listener.callback(topic, data);
       break;
     }
@@ -370,4 +366,11 @@ bool Mycila::MQTT::_topicMatches(const char* sub, const char* topic) {
     }
   }
   return false;
+}
+
+void Mycila::MQTT::_cleanupInactiveListeners() {
+  std::unique_lock<std::shared_mutex> lock(_listenersMutex);
+  _listeners.remove_if([](const MQTTMessageListener& listener) {
+    return !listener.active;
+  });
 }

@@ -9,7 +9,7 @@
 #include <atomic>
 #include <functional>
 #include <list>
-#include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -81,6 +81,7 @@ namespace Mycila {
       {
           std::string topic;
           MessageCallback callback;
+          bool active = true;
       } MQTTMessageListener;
 
       typedef struct {
@@ -110,9 +111,8 @@ namespace Mycila {
       void setAsync(bool async) { _async = async; }
       bool isAsync() { return _async; }
 
-      // Return false if the listener lock is unavailable; true means the local change was accepted.
-      bool subscribe(std::string topic, MessageCallback callback);
-      bool unsubscribe(const char* topic);
+      void subscribe(std::string topic, MessageCallback callback);
+      void unsubscribe(const char* topic);
 
       std::vector<std::string> getSubscribedTopics() const;
 
@@ -131,13 +131,14 @@ namespace Mycila {
       std::atomic<State> _state{State::MQTT_DISABLED};
       ConnectedCallback _onConnect = nullptr;
       std::list<MQTTMessageListener> _listeners;
-      mutable std::mutex _listenersMutex;
+      mutable std::shared_mutex _listenersMutex;
       Config _config;
       const char* _lastError = nullptr;
       bool _async = false;
       std::function<void(esp_mqtt_client_config_t& cfg)> _configHook = nullptr;
 
     private:
+      void _cleanupInactiveListeners();
       static void _mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
       static bool _topicMatches(const char* subscribed, const char* topic);
   };
