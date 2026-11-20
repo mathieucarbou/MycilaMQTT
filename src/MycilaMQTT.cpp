@@ -14,20 +14,6 @@
 #include <utility>
 #include <vector>
 
-#ifdef MYCILA_LOGGER_SUPPORT
-  #include <MycilaLogger.h>
-extern Mycila::Logger logger;
-  #define LOGD(tag, format, ...) logger.debug(tag, format, ##__VA_ARGS__)
-  #define LOGI(tag, format, ...) logger.info(tag, format, ##__VA_ARGS__)
-  #define LOGW(tag, format, ...) logger.warn(tag, format, ##__VA_ARGS__)
-  #define LOGE(tag, format, ...) logger.error(tag, format, ##__VA_ARGS__)
-#else
-  #define LOGD(tag, format, ...) ESP_LOGD(tag, format, ##__VA_ARGS__)
-  #define LOGI(tag, format, ...) ESP_LOGI(tag, format, ##__VA_ARGS__)
-  #define LOGW(tag, format, ...) ESP_LOGW(tag, format, ##__VA_ARGS__)
-  #define LOGE(tag, format, ...) ESP_LOGE(tag, format, ##__VA_ARGS__)
-#endif
-
 #define TAG "MQTT"
 
 void Mycila::MQTT::begin(MQTT::Config config) {
@@ -37,11 +23,11 @@ void Mycila::MQTT::begin(MQTT::Config config) {
   _config = std::move(config);
 
   if (_config.server.empty() || _config.port <= 0) {
-    LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
+    ESP_LOGE(TAG, "MQTT disabled: Invalid server, port or base topic");
     return;
   }
 
-  LOGI(TAG, "Enable MQTT...");
+  ESP_LOGI(TAG, "Enable MQTT...");
 
   const bool auth = !_config.username.empty() && !_config.password.empty();
 
@@ -118,7 +104,7 @@ void Mycila::MQTT::begin(MQTT::Config config) {
   delete cfg;
 
   if (!_mqttClient) {
-    LOGE(TAG, "Failed to create MQTT client");
+    ESP_LOGE(TAG, "Failed to create MQTT client");
     return;
   }
   ESP_ERROR_CHECK(esp_mqtt_client_register_event(_mqttClient, MQTT_EVENT_ANY, _mqttEventHandler, this));
@@ -130,7 +116,7 @@ void Mycila::MQTT::end() {
   if (_state == MQTT::State::MQTT_DISABLED)
     return;
 
-  LOGI(TAG, "Disable MQTT...");
+  ESP_LOGI(TAG, "Disable MQTT...");
   esp_mqtt_client_publish(_mqttClient, _config.willTopic.c_str(), "offline", 7, 0, true);
   _state = MQTT::State::MQTT_DISABLED;
   esp_mqtt_client_disconnect(_mqttClient);
@@ -166,17 +152,17 @@ void Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) 
     // esp-mqtt calls are never issued while `_listenersMutex` is held: esp-mqtt holds its own
     // internal lock across event dispatch, so taking ours first would deadlock the two tasks.
     if (esp_mqtt_client_subscribe(_mqttClient, t.c_str(), 0) != -1) {
-      LOGD(TAG, "Subscribed to: %s", t.c_str());
+      ESP_LOGD(TAG, "Subscribed to: %s", t.c_str());
     } else {
-      LOGE(TAG, "Failed to subscribe to: %s", t.c_str());
+      ESP_LOGE(TAG, "Failed to subscribe to: %s", t.c_str());
     }
   } else {
-    LOGD(TAG, "Will subscribe (when connected) to: %s", t.c_str());
+    ESP_LOGD(TAG, "Will subscribe (when connected) to: %s", t.c_str());
   }
 }
 
 void Mycila::MQTT::unsubscribe(const char* topic) {
-  LOGD(TAG, "Unsubscribing from: %s...", topic);
+  ESP_LOGD(TAG, "Unsubscribing from: %s...", topic);
   {
     // shared_lock: flipping `active` only touches element data, not list structure
     std::shared_lock<std::shared_mutex> lock(_listenersMutex);
@@ -222,19 +208,19 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       switch (event->error_handle->error_type) {
         case MQTT_ERROR_TYPE_CONNECTION_REFUSED:
 #ifdef MYCILA_MQTT_DEBUG
-          LOGD(TAG, "MQTT_EVENT_ERROR: Connection refused");
+          ESP_LOGD(TAG, "MQTT_EVENT_ERROR: Connection refused");
 #endif
           mqtt->_lastError = "Connection refused";
           break;
         case MQTT_ERROR_TYPE_TCP_TRANSPORT:
 #ifdef MYCILA_MQTT_DEBUG
-          LOGD(TAG, "MQTT_EVENT_ERROR: TCP transport error: %s", strerror(event->error_handle->esp_transport_sock_errno));
+          ESP_LOGD(TAG, "MQTT_EVENT_ERROR: TCP transport error: %s", strerror(event->error_handle->esp_transport_sock_errno));
 #endif
           mqtt->_lastError = "TCP transport error";
           break;
         default:
 #ifdef MYCILA_MQTT_DEBUG
-          LOGD(TAG, "MQTT_EVENT_ERROR: Unknown error");
+          ESP_LOGD(TAG, "MQTT_EVENT_ERROR: Unknown error");
 #endif
           mqtt->_lastError = "Unknown error";
           break;
@@ -242,7 +228,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       break;
     case MQTT_EVENT_CONNECTED:
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_CONNECTED");
+      ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED");
 #endif
       if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_CONNECTED)) {
         // state has changed => user ended ?
@@ -268,7 +254,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
             continue;
           esp_mqtt_client_subscribe(mqttClient, _listener->topic.c_str(), 0);
 #ifdef MYCILA_MQTT_DEBUG
-          LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener->topic.c_str());
+          ESP_LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener->topic.c_str());
 #endif
         }
       }
@@ -277,7 +263,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       break;
     case MQTT_EVENT_DISCONNECTED:
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_DISCONNECTED");
+      ESP_LOGD(TAG, "MQTT_EVENT_DISCONNECTED");
 #endif
       if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_DISCONNECTED)) {
         // state has changed => user ended ?
@@ -292,7 +278,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       std::string topic(event->topic, event->topic_len);
       std::string_view data(event->data, event->data_len);
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_DATA: %s len=%" PRIu32, topic.c_str(), static_cast<uint32_t>(data.length()));
+      ESP_LOGD(TAG, "MQTT_EVENT_DATA: %s len=%" PRIu32, topic.c_str(), static_cast<uint32_t>(data.length()));
 #endif
       // Snapshot the matching listeners under a shared lock, then invoke the callbacks
       // outside the lock: callbacks may call subscribe()/unsubscribe() without deadlocking.
@@ -315,7 +301,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     }
     case MQTT_EVENT_BEFORE_CONNECT:
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
+      ESP_LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
 #endif
       if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_CONNECTING)) {
         // state has changed => user ended ?
@@ -325,7 +311,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
     case MQTT_EVENT_DELETED:
 // see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_DELETED: %d", event->msg_id);
+      ESP_LOGD(TAG, "MQTT_EVENT_DELETED: %d", event->msg_id);
 #endif
       break;
     default:
@@ -334,7 +320,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 }
 
 bool Mycila::MQTT::_topicMatches(const char* sub, const char* topic) {
-  // LOGD(TAG, "Match: %s vs %s ?", sub, topic);
+  // ESP_LOGD(TAG, "Match: %s vs %s ?", sub, topic);
   size_t spos;
 
   if (!sub || !topic || sub[0] == 0 || topic[0] == 0)
