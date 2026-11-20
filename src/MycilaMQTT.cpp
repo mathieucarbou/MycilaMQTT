@@ -137,9 +137,6 @@ void Mycila::MQTT::end() {
   esp_mqtt_client_stop(_mqttClient);
   esp_mqtt_client_destroy(_mqttClient);
   _mqttClient = nullptr;
-
-  // The stopped worker can no longer overwrite this with a disconnect event.
-  _state = MQTT::State::MQTT_DISABLED;
 }
 
 bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, bool retain) {
@@ -199,6 +196,11 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
   // lock the list and cleanup inactive listeners
   mqtt->_cleanupInactiveListeners();
 
+  // if state is MQTT_DISABLED, we should ignore events as the client is no longer active
+  MQTT::State state = mqtt->_state;
+  if (state == MQTT::State::MQTT_DISABLED)
+    return;
+
   switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_ERROR:
       switch (event->error_handle->error_type) {
@@ -223,11 +225,14 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       }
       break;
     case MQTT_EVENT_CONNECTED:
-      mqtt->_state = MQTT::State::MQTT_CONNECTED;
-      mqtt->publish(mqtt->_config.willTopic.c_str(), "online", true);
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
+      LOGD(TAG, "MQTT_EVENT_CONNECTED");
 #endif
+      if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_CONNECTED)) {
+        // state has changed => user ended ?
+        return;
+      }
+      mqtt->publish(mqtt->_config.willTopic.c_str(), "online", true);
       // we do not need to lock (or even take a shared lock) because the only operation that is mutating the list is above from the same task
       for (auto& _listener : mqtt->_listeners) {
         if (_listener.active) {
@@ -235,7 +240,7 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
           LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener.topic.c_str());
 #endif
-      }
+        }
       }
       if (mqtt->_onConnect)
         mqtt->_onConnect();
@@ -244,7 +249,10 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DISCONNECTED");
 #endif
-      mqtt->_state = MQTT::State::MQTT_DISCONNECTED;
+      if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_DISCONNECTED)) {
+        // state has changed => user ended ?
+        return;
+      }
       break;
     case MQTT_EVENT_SUBSCRIBED:
       break;
@@ -265,7 +273,10 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
 #endif
-      mqtt->_state = MQTT::State::MQTT_CONNECTING;
+      if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_CONNECTING)) {
+        // state has changed => user ended ?
+        return;
+      }
       break;
     case MQTT_EVENT_DELETED:
 // see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
