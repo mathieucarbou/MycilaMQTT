@@ -247,11 +247,14 @@ bool publish(const char* topic, const std::string_view& payload, bool retain = f
 ```cpp
 void subscribe(std::string topic, MessageCallback callback)
 void unsubscribe(const char* topic)
+std::vector<std::string> getSubscribedTopics()
 ```
 
 **Wildcard Support:**
 - `+` - Single-level wildcard (e.g., `home/+/temperature`)
 - `#` - Multi-level wildcard (e.g., `home/#`)
+
+**Thread safety & reentrancy:** `subscribe()`, `unsubscribe()` and `getSubscribedTopics()` are thread-safe and may be called from any task, including from within a listener callback. `unsubscribe()` takes effect for subsequent messages: the listener is marked inactive immediately, and its entry is removed from the list by the MQTT task at the next event.
 
 **Example:**
 

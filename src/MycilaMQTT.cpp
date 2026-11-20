@@ -9,8 +9,10 @@
 
 #include <algorithm>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 #ifdef MYCILA_LOGGER_SUPPORT
   #include <MycilaLogger.h>
@@ -120,8 +122,8 @@ void Mycila::MQTT::begin(MQTT::Config config) {
     return;
   }
   ESP_ERROR_CHECK(esp_mqtt_client_register_event(_mqttClient, MQTT_EVENT_ANY, _mqttEventHandler, this));
-  ESP_ERROR_CHECK(esp_mqtt_client_start(_mqttClient));
   _state = MQTT::State::MQTT_CONNECTING;
+  ESP_ERROR_CHECK(esp_mqtt_client_start(_mqttClient));
 }
 
 void Mycila::MQTT::end() {
@@ -147,31 +149,74 @@ bool Mycila::MQTT::publish(const char* topic, const std::string_view& payload, b
 }
 
 void Mycila::MQTT::subscribe(std::string topic, MQTT::MessageCallback callback) {
-  _listeners.push_back({std::move(topic), std::move(callback)});
+  std::string t;
+  {
+    // unique_lock: insertion mutates the list structure (links, size)
+    std::unique_lock<std::shared_mutex> lock(_listenersMutex);
+    // the listener struct is not movable (atomic member), so it is built in place;
+    // the topic and callback are moved into the node, no copy, no extra allocation
+    _listeners.emplace_back();
+    MQTTMessageListener& node = _listeners.back();
+    node.topic = std::move(topic);
+    node.callback = std::move(callback);
+    // copy the topic for use after the lock is released
+    t = node.topic;
+  }
   if (isConnected()) {
-    const char* t = _listeners.back().topic.c_str();
-    if (esp_mqtt_client_subscribe(_mqttClient, t, 0) != -1) {
-      LOGD(TAG, "Subscribed to: %s", t);
+    // esp-mqtt calls are never issued while `_listenersMutex` is held: esp-mqtt holds its own
+    // internal lock across event dispatch, so taking ours first would deadlock the two tasks.
+    if (esp_mqtt_client_subscribe(_mqttClient, t.c_str(), 0) != -1) {
+      LOGD(TAG, "Subscribed to: %s", t.c_str());
     } else {
-      LOGE(TAG, "Failed to subscribe to: %s", t);
+      LOGE(TAG, "Failed to subscribe to: %s", t.c_str());
     }
   } else {
-    LOGD(TAG, "Will subscribe (when connected) to: %s", _listeners.back().topic.c_str());
+    LOGD(TAG, "Will subscribe (when connected) to: %s", t.c_str());
   }
 }
 
 void Mycila::MQTT::unsubscribe(const char* topic) {
   LOGD(TAG, "Unsubscribing from: %s...", topic);
-  esp_mqtt_client_unsubscribe(_mqttClient, topic);
-  _listeners.remove_if([topic](const MQTTMessageListener& listener) {
-    return listener.topic == topic;
-  });
+  {
+    // shared_lock: flipping `active` only touches element data, not list structure
+    std::shared_lock<std::shared_mutex> lock(_listenersMutex);
+    for (auto& listener : _listeners) {
+      if (listener.topic == topic) {
+        // tombstone: the node is physically removed by the MQTT task, at the next event
+        listener.active.store(false, std::memory_order_relaxed);
+      }
+    }
+  }
+  // lock released: esp-mqtt calls are never issued while `_listenersMutex` is held.
+  // Safe to call from within a listener callback (the MQTT task re-enters esp-mqtt recursively).
+  if (isConnected())
+    esp_mqtt_client_unsubscribe(_mqttClient, topic);
+}
+
+std::vector<std::string> Mycila::MQTT::getSubscribedTopics() const {
+  std::shared_lock<std::shared_mutex> lock(_listenersMutex);
+  std::vector<std::string> topics;
+  topics.reserve(_listeners.size());
+  for (const auto& listener : _listeners) {
+    if (listener.active)
+      topics.push_back(listener.topic);
+  }
+  return topics;
 }
 
 void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
   esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
   esp_mqtt_client_handle_t mqttClient = event->client;
   Mycila::MQTT* mqtt = (Mycila::MQTT*)event_handler_arg;
+
+  // lock the list and cleanup inactive listeners
+  mqtt->_cleanupInactiveListeners();
+
+  // if state is MQTT_DISABLED, we should ignore events as the client is no longer active
+  MQTT::State state = mqtt->_state;
+  if (state == MQTT::State::MQTT_DISABLED)
+    return;
+
   switch ((esp_mqtt_event_id_t)event_id) {
     case MQTT_EVENT_ERROR:
       switch (event->error_handle->error_type) {
@@ -196,16 +241,36 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
       }
       break;
     case MQTT_EVENT_CONNECTED:
-      mqtt->_state = MQTT::State::MQTT_CONNECTED;
+#ifdef MYCILA_MQTT_DEBUG
+      LOGD(TAG, "MQTT_EVENT_CONNECTED");
+#endif
+      if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_CONNECTED)) {
+        // state has changed => user ended ?
+        return;
+      }
       mqtt->publish(mqtt->_config.willTopic.c_str(), "online", true);
+      // Snapshot the active listeners under a shared lock, then re-subscribe outside the lock:
+      // esp-mqtt calls are never issued while `_listenersMutex` is held.
+      // Node pointers are stable here: removals only happen on the MQTT task (deferred to the
+      // next handler entry), and additions never invalidate existing nodes.
+      {
+        std::vector<MQTTMessageListener*> listeners;
+        {
+          std::shared_lock<std::shared_mutex> lock(mqtt->_listenersMutex);
+          listeners.reserve(mqtt->_listeners.size());
+          for (auto& _listener : mqtt->_listeners)
+            if (_listener.active.load(std::memory_order_relaxed))
+              listeners.push_back(&_listener);
+        }
+        for (MQTTMessageListener* _listener : listeners) {
+          // re-check in case unsubscribe() was called by a user thread meanwhile
+          if (!_listener->active.load(std::memory_order_relaxed))
+            continue;
+          esp_mqtt_client_subscribe(mqttClient, _listener->topic.c_str(), 0);
 #ifdef MYCILA_MQTT_DEBUG
-      LOGD(TAG, "MQTT_EVENT_CONNECTED: Subscribing to %u topics...", mqtt->_listeners.size());
+          LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener->topic.c_str());
 #endif
-      for (auto& _listener : mqtt->_listeners) {
-        esp_mqtt_client_subscribe(mqttClient, _listener.topic.c_str(), 0);
-#ifdef MYCILA_MQTT_DEBUG
-        LOGD(TAG, "MQTT_EVENT_CONNECTED: %s", _listener.topic.c_str());
-#endif
+        }
       }
       if (mqtt->_onConnect)
         mqtt->_onConnect();
@@ -214,7 +279,10 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DISCONNECTED");
 #endif
-      mqtt->_state = MQTT::State::MQTT_DISCONNECTED;
+      if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_DISCONNECTED)) {
+        // state has changed => user ended ?
+        return;
+      }
       break;
     case MQTT_EVENT_SUBSCRIBED:
       break;
@@ -226,16 +294,33 @@ void Mycila::MQTT::_mqttEventHandler(void* event_handler_arg, esp_event_base_t e
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_DATA: %s len=%" PRIu32, topic.c_str(), static_cast<uint32_t>(data.length()));
 #endif
-      for (auto& listener : mqtt->_listeners)
-        if (_topicMatches(listener.topic.c_str(), topic.c_str()))
-          listener.callback(topic, data);
+      // Snapshot the matching listeners under a shared lock, then invoke the callbacks
+      // outside the lock: callbacks may call subscribe()/unsubscribe() without deadlocking.
+      std::vector<MQTTMessageListener*> listeners;
+      {
+        std::shared_lock<std::shared_mutex> lock(mqtt->_listenersMutex);
+        listeners.reserve(mqtt->_listeners.size());
+        for (auto& listener : mqtt->_listeners)
+          if (listener.active.load(std::memory_order_relaxed) && _topicMatches(listener.topic.c_str(), topic.c_str()))
+            listeners.push_back(&listener);
+      }
+      // `std::list` nodes are stable: pointers remain valid because removals only happen on the
+      // MQTT task (deferred to the next handler entry), and additions never invalidate nodes.
+      for (MQTTMessageListener* listener : listeners) {
+        // re-check in case unsubscribe() was called by an earlier callback of this same message
+        if (listener->active.load(std::memory_order_relaxed))
+          listener->callback(topic, data);
+      }
       break;
     }
     case MQTT_EVENT_BEFORE_CONNECT:
 #ifdef MYCILA_MQTT_DEBUG
       LOGD(TAG, "MQTT_EVENT_BEFORE_CONNECT");
 #endif
-      mqtt->_state = MQTT::State::MQTT_CONNECTING;
+      if (!mqtt->_state.compare_exchange_strong(state, MQTT::State::MQTT_CONNECTING)) {
+        // state has changed => user ended ?
+        return;
+      }
       break;
     case MQTT_EVENT_DELETED:
 // see OUTBOX_EXPIRED_TIMEOUT_MS and MQTT_REPORT_DELETED_MESSAGES
@@ -337,4 +422,11 @@ bool Mycila::MQTT::_topicMatches(const char* sub, const char* topic) {
     }
   }
   return false;
+}
+
+void Mycila::MQTT::_cleanupInactiveListeners() {
+  std::unique_lock<std::shared_mutex> lock(_listenersMutex);
+  _listeners.remove_if([](const MQTTMessageListener& listener) {
+    return !listener.active;
+  });
 }
